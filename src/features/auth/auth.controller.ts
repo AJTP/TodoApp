@@ -5,19 +5,9 @@ import * as tokenService from "./token.service.js";
 import * as userService from "../users/user.service.js";
 import { UnverifiedEmailError } from "./exceptions.js";
 
-interface GoogleLoginRequest extends FastifyRequest {
-  body: { id_token: string };
-}
-
-interface RefreshRequest extends FastifyRequest {
-  body: { refresh_token: string };
-}
-
-export async function googleLogin(
-  request: GoogleLoginRequest,
-  reply: FastifyReply,
-): Promise<void> {
-  const { id_token: idToken } = request.body;
+export async function googleLogin(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const body = request.body as { id_token: string };
+  const { id_token: idToken } = body;
 
   let profile;
   try {
@@ -33,10 +23,7 @@ export async function googleLogin(
 
   let user;
   try {
-    user = await identityService.findOrCreateUserFromIdentity(
-      request.server.pg,
-      profile,
-    );
+    user = await identityService.findOrCreateUserFromIdentity(request.server.pg, profile);
   } catch (err) {
     if (err instanceof UnverifiedEmailError) {
       reply.status(401).send({ error: "Unauthorized", message: err.message });
@@ -49,24 +36,19 @@ export async function googleLogin(
     id: user.id,
     email: user.email,
   });
-  const refreshToken = await tokenService.issueRefreshToken(
-    request.server.pg,
-    user.id,
-  );
+  const refreshToken = await tokenService.issueRefreshToken(request.server.pg, user.id);
 
   reply.status(200).send({ accessToken, refreshToken, user });
 }
 
 export async function refreshAccessToken(
-  request: RefreshRequest,
+  request: FastifyRequest,
   reply: FastifyReply,
 ): Promise<void> {
-  const { refresh_token: refreshTokenValue } = request.body;
+  const body = request.body as { refresh_token: string };
+  const { refresh_token: refreshTokenValue } = body;
 
-  const rotated = await tokenService.rotateRefreshToken(
-    request.server.pg,
-    refreshTokenValue,
-  );
+  const rotated = await tokenService.rotateRefreshToken(request.server.pg, refreshTokenValue);
 
   if (!rotated) {
     reply.status(401).send({
@@ -76,10 +58,7 @@ export async function refreshAccessToken(
     return;
   }
 
-  const user = await userService.getUserById(
-    request.server.pg,
-    rotated.userId,
-  );
+  const user = await userService.getUserById(request.server.pg, rotated.userId);
   const accessToken = await reply.jwtSign({
     id: rotated.userId,
     email: user.email,
@@ -88,18 +67,12 @@ export async function refreshAccessToken(
   reply.status(200).send({ accessToken, refreshToken: rotated.refreshToken });
 }
 
-export async function logout(
-  request: FastifyRequest,
-  reply: FastifyReply,
-): Promise<void> {
+export async function logout(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   await tokenService.revokeAllRefreshTokens(request.server.pg, request.user.id);
   reply.status(204).send();
 }
 
-export async function getMe(
-  request: FastifyRequest,
-  reply: FastifyReply,
-): Promise<void> {
+export async function getMe(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   const user = await userService.getUserById(request.server.pg, request.user.id);
   reply.send(user);
 }

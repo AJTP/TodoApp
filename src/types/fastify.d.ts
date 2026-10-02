@@ -1,6 +1,7 @@
 import "fastify";
 import "@fastify/jwt";
 import { Pool } from "pg";
+import type { FastifyRequest, FastifyReply } from "fastify";
 
 declare global {
   namespace NodeJS {
@@ -24,11 +25,10 @@ declare global {
 declare module "fastify" {
   interface FastifyInstance {
     pg: Pool;
-    authenticate: (
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) => Promise<void>;
-    ensureOwnParams: (idParam?: string) => FastifyMiddleware;
+    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    ensureOwnParams: (
+      idParam?: string,
+    ) => (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
   }
 }
 

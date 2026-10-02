@@ -10,10 +10,7 @@ export async function getUserById(pg: Queryable, userId: string): Promise<User> 
   return user;
 }
 
-export async function getUserByEmail(
-  pg: Queryable,
-  email: string,
-): Promise<User | null> {
+export async function getUserByEmail(pg: Queryable, email: string): Promise<User | null> {
   return userRepository.findByEmail(pg, email);
 }
 

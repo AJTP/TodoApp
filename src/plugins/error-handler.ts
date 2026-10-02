@@ -22,14 +22,16 @@ export default fp(async function errorHandlerPlugin(fastify) {
 
     const isAppException = error.name && error.name !== "Error";
 
-    reply.status(statusCode).send({
-      error:
-        statusCode === 500 ? "Internal Server Error" : error.name || "Error",
-      message:
-        statusCode === 500 ? "Something went wrong" : error.message,
-      ...(isAppException &&
-        error.details && { details: error.details }),
-    });
+    const response: Record<string, unknown> = {
+      error: statusCode === 500 ? "Internal Server Error" : error.name || "Error",
+      message: statusCode === 500 ? "Something went wrong" : error.message,
+    };
+
+    if (isAppException && error.details) {
+      response.details = error.details;
+    }
+
+    reply.status(statusCode).send(response);
   });
 
   fastify.setNotFoundHandler(function (request: FastifyRequest, reply: FastifyReply) {

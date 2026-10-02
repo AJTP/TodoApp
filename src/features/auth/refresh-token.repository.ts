@@ -32,16 +32,10 @@ export async function findValid(
 }
 
 export async function revoke(pg: Queryable, tokenId: string): Promise<void> {
-  await pg.query(
-    "UPDATE refresh_tokens SET revoked_at = now() WHERE id = $1",
-    [tokenId],
-  );
+  await pg.query("UPDATE refresh_tokens SET revoked_at = now() WHERE id = $1", [tokenId]);
 }
 
-export async function revokeAllByUserId(
-  pg: Queryable,
-  userId: string,
-): Promise<void> {
+export async function revokeAllByUserId(pg: Queryable, userId: string): Promise<void> {
   await pg.query(
     "UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL",
     [userId],

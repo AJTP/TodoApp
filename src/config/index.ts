@@ -5,7 +5,10 @@ dotenv.config();
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  PORT: z.string().regex(/^[0-9]+$/).default("3000"),
+  PORT: z
+    .string()
+    .regex(/^[0-9]+$/)
+    .default("3000"),
   HOST: z.string().default("0.0.0.0"),
   LOG_LEVEL: z.string().default("info"),
   DATABASE_URL: z.string().min(1),
@@ -13,7 +16,10 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().default("1h"),
   CORS_ORIGIN: z.string().default("*"),
-  AUTH_RATE_LIMIT_MAX: z.string().regex(/^[0-9]+$/).default("10"),
+  AUTH_RATE_LIMIT_MAX: z
+    .string()
+    .regex(/^[0-9]+$/)
+    .default("10"),
   AUTH_RATE_LIMIT_WINDOW: z.string().default("1 minute"),
   STRICT_SSL: z.string().optional(),
 });
@@ -40,9 +46,7 @@ if (env.STRICT_SSL === "false") {
 
 // CORS_ORIGIN admite "*" (cualquier origen), un origen único o varios
 // separados por comas.
-function parseCorsOrigin(
-  value: string,
-): boolean | string | string[] {
+function parseCorsOrigin(value: string): boolean | string | string[] {
   if (value === "*") return true;
   if (value.includes(",")) return value.split(",").map((origin) => origin.trim());
   return value;

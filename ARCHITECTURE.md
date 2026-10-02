@@ -119,10 +119,7 @@ interface GoogleLoginRequest extends FastifyRequest {
   body: { id_token: string };
 }
 
-export async function googleLogin(
-  request: GoogleLoginRequest,
-  reply: FastifyReply,
-): Promise<void> {
+export async function googleLogin(request: GoogleLoginRequest, reply: FastifyReply): Promise<void> {
   const { id_token: idToken } = request.body; // Parsear input (tipado)
 
   let profile;
@@ -133,10 +130,7 @@ export async function googleLogin(
     return;
   }
 
-  const user = await identityService.findOrCreateUserFromIdentity(
-    request.server.pg,
-    profile,
-  );
+  const user = await identityService.findOrCreateUserFromIdentity(request.server.pg, profile);
 
   const accessToken = await reply.jwtSign({ id: user.id, email: user.email });
   reply.status(200).send({ accessToken, user }); // Enviar response
@@ -290,11 +284,7 @@ import * as authController from "./auth.controller.js";
 import { googleLoginSchema, meSchema } from "./auth.schema.js";
 
 export default async function authRoutes(fastify: FastifyInstance): Promise<void> {
-  fastify.post(
-    "/auth/google",
-    { schema: googleLoginSchema },
-    authController.googleLogin,
-  );
+  fastify.post("/auth/google", { schema: googleLoginSchema }, authController.googleLogin);
 
   fastify.get(
     "/auth/me",
@@ -468,18 +458,12 @@ interface CreateProductRequest extends FastifyRequest {
   body: { name: string; price: number };
 }
 
-export async function listProducts(
-  request: FastifyRequest,
-  reply: FastifyReply,
-): Promise<void> {
+export async function listProducts(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   const products = await productService.getProducts(request.server.pg);
   reply.send(products);
 }
 
-export async function getProduct(
-  request: GetProductRequest,
-  reply: FastifyReply,
-): Promise<void> {
+export async function getProduct(request: GetProductRequest, reply: FastifyReply): Promise<void> {
   const product = await productService.getProductById(request.server.pg, request.params.id);
   reply.send(product);
 }
@@ -554,24 +538,12 @@ export const createProductSchema = {
 // src/features/products/product.routes.ts
 import type { FastifyInstance } from "fastify";
 import * as productController from "./product.controller.js";
-import {
-  listProductsSchema,
-  getProductSchema,
-  createProductSchema,
-} from "./product.schema.js";
+import { listProductsSchema, getProductSchema, createProductSchema } from "./product.schema.js";
 
 export default async function productRoutes(fastify: FastifyInstance): Promise<void> {
-  fastify.get(
-    "/products",
-    { schema: listProductsSchema },
-    productController.listProducts,
-  );
+  fastify.get("/products", { schema: listProductsSchema }, productController.listProducts);
 
-  fastify.get(
-    "/products/:id",
-    { schema: getProductSchema },
-    productController.getProduct,
-  );
+  fastify.get("/products/:id", { schema: getProductSchema }, productController.getProduct);
 
   fastify.post(
     "/products",
@@ -668,10 +640,7 @@ interface CreateUserRequest extends FastifyRequest {
   body: { email: string; name: string };
 }
 
-export async function createUser(
-  request: CreateUserRequest,
-  reply: FastifyReply,
-): Promise<void> {
+export async function createUser(request: CreateUserRequest, reply: FastifyReply): Promise<void> {
   try {
     const user = await userService.createUser(request.server.pg, request.body);
     reply.status(201).send(user);
@@ -700,11 +669,7 @@ export async function createUserWithProfile(
     await client.query("BEGIN");
 
     const user = await userRepository.create(client as Queryable, userData);
-    await profileRepository.create(
-      client as Queryable,
-      user.id,
-      userData.profileData,
-    );
+    await profileRepository.create(client as Queryable, user.id, userData.profileData);
 
     await client.query("COMMIT");
     return user;

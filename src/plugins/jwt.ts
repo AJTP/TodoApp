@@ -12,9 +12,7 @@ export default fp(async function jwtPlugin(fastify) {
     try {
       await request.jwtVerify();
     } catch {
-      reply
-        .status(401)
-        .send({ error: "Unauthorized", message: "Invalid or expired token" });
+      reply.status(401).send({ error: "Unauthorized", message: "Invalid or expired token" });
     }
   });
 });

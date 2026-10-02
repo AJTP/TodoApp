@@ -1,9 +1,6 @@
 import type { Queryable, User } from "../../shared/types.js";
 
-export async function findById(
-  pg: Queryable,
-  userId: string,
-): Promise<User | null> {
+export async function findById(pg: Queryable, userId: string): Promise<User | null> {
   const { rows } = await pg.query(
     "SELECT id, name, email, avatar_url, created_at FROM users WHERE id = $1",
     [userId],
@@ -20,10 +17,7 @@ export async function findById(
     : null;
 }
 
-export async function findByEmail(
-  pg: Queryable,
-  email: string,
-): Promise<User | null> {
+export async function findByEmail(pg: Queryable, email: string): Promise<User | null> {
   const { rows } = await pg.query(
     "SELECT id, name, email, avatar_url, created_at FROM users WHERE email = $1",
     [email],

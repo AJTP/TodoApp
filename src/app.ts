@@ -11,9 +11,7 @@ import type { FastifyServerOptions } from "fastify";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-export async function build(
-  opts: FastifyServerOptions = {},
-): Promise<ReturnType<typeof Fastify>> {
+export async function build(opts: FastifyServerOptions = {}): Promise<ReturnType<typeof Fastify>> {
   const fastify = Fastify({
     logger: { level: config.logLevel },
     ...opts,

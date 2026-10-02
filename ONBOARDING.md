@@ -47,6 +47,7 @@ src/
 ```
 
 **Cada feature (`src/features/<nombre>/`) contiene:**
+
 - `.routes.ts` - Endpoints
 - `.controller.ts` - Lógica HTTP
 - `.service.ts` - Lógica de negocio
@@ -71,6 +72,7 @@ src/
 - Logout múltiple (cierra todas las sesiones)
 
 **Rutas:**
+
 - `POST /auth/google` - Login
 - `POST /auth/refresh` - Renovar token
 - `GET /auth/me` - Perfil actual
@@ -163,6 +165,7 @@ mkdir -p src/features/products
 ### 3. Crear los 5 archivos
 
 **`src/features/products/product.repository.ts`** (acceso a datos)
+
 ```typescript
 import type { Queryable, Product } from "../../shared/types.js";
 
@@ -173,6 +176,7 @@ export async function findAll(pg: Queryable): Promise<Product[]> {
 ```
 
 **`src/features/products/product.service.ts`** (lógica de negocio)
+
 ```typescript
 import * as productRepository from "./product.repository.js";
 
@@ -182,6 +186,7 @@ export async function getProducts(pg: Queryable): Promise<Product[]> {
 ```
 
 **`src/features/products/product.controller.ts`** (HTTP)
+
 ```typescript
 import type { FastifyReply, FastifyRequest } from "fastify";
 import * as productService from "./product.service.js";
@@ -193,6 +198,7 @@ export async function listProducts(request: FastifyRequest, reply: FastifyReply)
 ```
 
 **`src/features/products/product.schema.ts`** (validación + docs)
+
 ```typescript
 export const listProductsSchema = {
   tags: ["products"],
@@ -207,6 +213,7 @@ export const listProductsSchema = {
 ```
 
 **`src/features/products/product.routes.ts`** (endpoints)
+
 ```typescript
 import type { FastifyInstance } from "fastify";
 import * as controller from "./product.controller.js";
@@ -292,6 +299,7 @@ describe("products", () => {
 Todas las rutas con `preHandler: [fastify.authenticate]` requieren un `Authorization: Bearer <jwt>` válido.
 
 El JWT se obtiene de:
+
 1. `POST /auth/google` (login con Google)
 2. `POST /auth/refresh` (renovar después de expirar)
 
@@ -319,15 +327,19 @@ Todas están validadas en `src/config/index.ts` con AJV.
 ## 🐛 Troubleshooting
 
 ### "Module not found" en tests
+
 → Usa `.js` al importar (ESM native), aunque el archivo sea `.ts`.
 
 ### TypeError: Cannot use import statement outside a module
+
 → Asegúrate de que `"type": "module"` está en `package.json`.
 
 ### TypeScript error en migraciones
+
 → Las migraciones usan `tsx` automáticamente; node-pg-migrate puede compilar `.ts` with `--compileOnFly`.
 
 ### Docker build falla en redes corporativas
+
 → Define `STRICT_SSL=false` en `.env` y en `docker build --build-arg STRICT_SSL=false`.
 
 ---
@@ -354,10 +366,10 @@ Todas están validadas en `src/config/index.ts` con AJV.
 ## 🤝 Contribuciones / Feedback
 
 Este es un template pensado para **tu equipo**. Siéntete libre de:
+
 - Cambiar la estructura de carpetas si prefieres
 - Agregar más plugins de Fastify
 - Reemplazar AJV con TypeBox o Zod si prefieres
 - Adaptar la estrategia de testing
 
 ¡Feliz codeo! 🚀
-

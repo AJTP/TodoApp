@@ -6,9 +6,7 @@ const client = new OAuth2Client(config.googleClientId);
 
 // Verifica un id_token de Google y devuelve el perfil normalizado que
 // espera identity.service.ts, independientemente del proveedor.
-export async function verifyGoogleIdToken(
-  idToken: string,
-): Promise<OAuthProfile> {
+export async function verifyGoogleIdToken(idToken: string): Promise<OAuthProfile> {
   const ticket = await client.verifyIdToken({
     idToken,
     audience: config.googleClientId,
@@ -23,8 +21,7 @@ export async function verifyGoogleIdToken(
     provider: "google",
     providerUserId: payload.sub,
     email: payload.email || "",
-    emailVerified:
-      payload.email_verified === true || payload.email_verified === "true",
+    emailVerified: payload.email_verified === true || String(payload.email_verified) === "true",
     name: payload.name || "User",
     avatarUrl: payload.picture || null,
   };

@@ -8,18 +8,13 @@ export async function findOrCreateUserFromIdentity(
   pg: Queryable & { connect?(): Promise<PoolClient> },
   profile: OAuthProfile,
 ): Promise<User> {
-  const { provider, providerUserId, email, emailVerified, name, avatarUrl } =
-    profile;
+  const { provider, providerUserId, email, emailVerified, name, avatarUrl } = profile;
 
   if (!emailVerified) {
     throw new UnverifiedEmailError(provider);
   }
 
-  const identity = await identityRepository.findByProvider(
-    pg,
-    provider,
-    providerUserId,
-  );
+  const identity = await identityRepository.findByProvider(pg, provider, providerUserId);
 
   if (identity) {
     return userService.getUserById(pg, identity.user_id);
@@ -39,12 +34,7 @@ export async function findOrCreateUserFromIdentity(
       });
     }
 
-    await identityRepository.create(
-      client as Queryable,
-      user.id,
-      provider,
-      providerUserId,
-    );
+    await identityRepository.create(client as Queryable, user.id, provider, providerUserId);
 
     await client.query("COMMIT");
     return user;

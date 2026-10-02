@@ -1,10 +1,7 @@
 import * as refreshTokenRepository from "./refresh-token.repository.js";
 import type { Queryable } from "../../shared/types.js";
 
-export async function issueRefreshToken(
-  pg: Queryable,
-  userId: string,
-): Promise<string> {
+export async function issueRefreshToken(pg: Queryable, userId: string): Promise<string> {
   return refreshTokenRepository.create(pg, userId);
 }
 
@@ -24,9 +21,6 @@ export async function rotateRefreshToken(
   return { userId: current.user_id, refreshToken: newRefreshToken };
 }
 
-export async function revokeAllRefreshTokens(
-  pg: Queryable,
-  userId: string,
-): Promise<void> {
+export async function revokeAllRefreshTokens(pg: Queryable, userId: string): Promise<void> {
   return refreshTokenRepository.revokeAllByUserId(pg, userId);
 }
