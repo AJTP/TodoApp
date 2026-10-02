@@ -27,57 +27,61 @@ Cada feature es un módulo independiente con su propia lógica de negocio. Ejemp
 ```
 features/
 ├── auth/
-│   ├── auth.controller.js          # Manejadores de requests HTTP
-│   ├── auth.routes.js              # Definición de endpoints
-│   ├── auth.schema.js              # Validaciones (JSON Schema)
-│   ├── identity.repository.js      # Acceso a datos: identidades
-│   ├── identity.service.js         # Lógica de negocio: identidades
-│   ├── refresh-token.repository.js # Acceso a datos: refresh tokens
-│   ├── token.service.js            # Lógica de negocio: tokens
-│   └── exceptions.js               # Errores específicos de auth
+│   ├── auth.controller.ts          # Manejadores de requests HTTP
+│   ├── auth.routes.ts              # Definición de endpoints
+│   ├── auth.schema.ts              # Validaciones (JSON Schema)
+│   ├── identity.repository.ts      # Acceso a datos: identidades
+│   ├── identity.service.ts         # Lógica de negocio: identidades
+│   ├── refresh-token.repository.ts # Acceso a datos: refresh tokens
+│   ├── token.service.ts            # Lógica de negocio: tokens
+│   └── exceptions.ts               # Errores específicos de auth
 ├── users/
-│   ├── user.controller.js
-│   ├── user.routes.js
-│   ├── user.schema.js
-│   ├── user.repository.js
-│   ├── user.service.js
-│   └── exceptions.js
+│   ├── user.controller.ts
+│   ├── user.routes.ts
+│   ├── user.schema.ts
+│   ├── user.repository.ts
+│   ├── user.service.ts
+│   └── exceptions.ts
 ├── health/
-│   └── health.routes.js
+│   └── health.routes.ts
 └── providers/
-    └── google.js                   # Integraciones externas
+    └── google.ts                   # Integraciones externas
 ```
 
 ### `src/shared/` - Código Compartido
 
 Código reutilizable entre features.
 
-- **`exceptions/app-exception.js`** - Clase base para todas las excepciones personalizadas
-- **`schemas/common.schema.js`** - Schemas comunes (errores, etc.)
-- **`types/`** - Tipos/interfaces compartidas (futuro)
+- **`exceptions/app-exception.ts`** - Clase base para todas las excepciones personalizadas
+- **`schemas/common.schema.ts`** - Schemas comunes (errores, etc.)
+- **`types.ts`** - Tipos/interfaces compartidas (User, Identity, RefreshToken, OAuthProfile, Queryable)
 - **`utils/`** - Funciones utilitarias (futuro)
 
 ### `src/plugins/` - Plugins de Fastify
 
 Extensiones y middlewares de Fastify.
 
-- **`db.js`** - Conexión a PostgreSQL
-- **`jwt.js`** - Autenticación con JWT
-- **`cors.js`** - CORS configuration
-- **`rate-limit.js`** - Rate limiting
-- **`authorization.js`** - Verificación de permisos
-- **`swagger.js`** - Documentación OpenAPI
-- **`error-handler.js`** - Manejo centralizado de errores
-- **`schemas.js`** - Registro de schemas comunes
+- **`db.ts`** - Conexión a PostgreSQL
+- **`jwt.ts`** - Autenticación con JWT
+- **`cors.ts`** - CORS configuration
+- **`rate-limit.ts`** - Rate limiting
+- **`authorization.ts`** - Verificación de permisos
+- **`swagger.ts`** - Documentación OpenAPI
+- **`error-handler.ts`** - Manejo centralizado de errores
+- **`schemas.ts`** - Registro de schemas comunes
 
 ### `src/config/` - Configuración
 
-- **`index.js`** - Variables de entorno y configuración centralizada
+- **`index.ts`** - Variables de entorno y configuración centralizada (tipada con Config interface)
+
+### `src/types/` - Declaraciones de Tipos
+
+- **`fastify.d.ts`** - Augmentación de módulos para Fastify, FastifyJWT y variables de entorno
 
 ### Archivos Raíz
 
-- **`src/app.js`** - Factory que construye la instancia de Fastify
-- **`src/server.js`** - Punto de entrada: inicia la app
+- **`src/app.ts`** - Factory que construye la instancia de Fastify
+- **`src/server.ts`** - Punto de entrada: inicia la app
 
 ---
 
@@ -86,13 +90,13 @@ Extensiones y middlewares de Fastify.
 ```
 Request HTTP
     ↓
-auth.routes.js         (define ruta + schema)
+auth.routes.ts         (define ruta + schema)
     ↓
-auth.controller.js     (parsea request, maneja respuesta)
+auth.controller.ts     (parsea request, maneja respuesta)
     ↓
-identity.service.js    (lógica de negocio)
+identity.service.ts    (lógica de negocio)
     ↓
-identity.repository.js (acceso a base de datos)
+identity.repository.ts (acceso a base de datos)
     ↓
 PostgreSQL
     ↓
@@ -103,25 +107,39 @@ Response JSON
 
 ## 🎯 Responsabilidades de Cada Capa
 
-### Controller (`.controller.js`)
+### Controller (`.controller.ts`)
 
-**Responsabilidad:** Manejar la lógica HTTP (request/response).
+**Responsabilidad:** Manejar la lógica HTTP (request/response). Tipado con genéricos de Fastify.
 
-```javascript
-// src/features/auth/auth.controller.js
-async function googleLogin(request, reply) {
-  const { id_token: idToken } = request.body; // Parsear input
+```typescript
+// src/features/auth/auth.controller.ts
+import type { FastifyRequest, FastifyReply } from "fastify";
 
+interface GoogleLoginRequest extends FastifyRequest {
+  body: { id_token: string };
+}
+
+export async function googleLogin(
+  request: GoogleLoginRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  const { id_token: idToken } = request.body; // Parsear input (tipado)
+
+  let profile;
   try {
-    const profile = await verifyGoogleIdToken(idToken);
+    profile = await verifyGoogleIdToken(idToken);
   } catch (err) {
-    return reply.status(401).send({ error: "Invalid token" });
+    reply.status(401).send({ error: "Unauthorized", message: "Invalid Google token" });
+    return;
   }
 
-  const user = await identityService.findOrCreateUserFromIdentity(request.server.pg, profile);
+  const user = await identityService.findOrCreateUserFromIdentity(
+    request.server.pg,
+    profile,
+  );
 
   const accessToken = await reply.jwtSign({ id: user.id, email: user.email });
-  return reply.status(200).send({ accessToken, user }); // Enviar response
+  reply.status(200).send({ accessToken, user }); // Enviar response
 }
 ```
 
@@ -131,14 +149,19 @@ async function googleLogin(request, reply) {
 - ✅ Llamar a servicios con lógica de negocio
 - ✅ Manejar errores y retornar códigos HTTP apropiados
 - ✅ Formatear y enviar la respuesta
+- ✅ Tipar argumentos y retorno
 
-### Service (`.service.js`)
+### Service (`.service.ts`)
 
 **Responsabilidad:** Lógica de negocio y orquestación de datos.
 
-```javascript
-// src/features/users/user.service.js
-async function getUserById(pg, userId) {
+```typescript
+// src/features/users/user.service.ts
+import type { Queryable, User } from "../../shared/types.js";
+import { UserNotFoundError } from "./exceptions.js";
+import * as userRepository from "./user.repository.js";
+
+export async function getUserById(pg: Queryable, userId: string): Promise<User> {
   const user = await userRepository.findById(pg, userId);
   if (!user) {
     throw new UserNotFoundError(userId); // Lanzar excepción
@@ -146,10 +169,14 @@ async function getUserById(pg, userId) {
   return user;
 }
 
-async function createUser(pg, userData) {
-  // Validaciones de negocio
-  const exists = await userRepository.findByEmail(pg, userData.email);
-  if (exists) throw new UserAlreadyExistsError();
+export async function createUser(
+  pg: Queryable,
+  userData: { name: string; email: string; avatarUrl: string | null },
+): Promise<User> {
+  // Validaciones de negocio (ejemplo)
+  if (!userData.email) {
+    throw new Error("Email is required");
+  }
 
   return userRepository.create(pg, userData);
 }
@@ -161,45 +188,73 @@ async function createUser(pg, userData) {
 - ✅ Validar datos (lógica de negocio, no entrada)
 - ✅ Orquestar múltiples repositorios
 - ✅ Lanzar excepciones personalizadas
+- ✅ Tipar argumentos, retornos y datos
 
-### Repository (`.repository.js`)
+### Repository (`.repository.ts`)
 
 **Responsabilidad:** Acceso a datos. Cualquier operación con BD pasa por aquí.
 
-```javascript
-// src/features/users/user.repository.js
-async function findById(pg, userId) {
-  const { rows } = await pg.query("SELECT id, name, email FROM users WHERE id = $1", [userId]);
-  return rows[0] || null;
+```typescript
+// src/features/users/user.repository.ts
+import type { Queryable, User } from "../../shared/types.js";
+
+export async function findById(pg: Queryable, userId: string): Promise<User | null> {
+  const { rows } = await pg.query(
+    "SELECT id, name, email, avatar_url, created_at FROM users WHERE id = $1",
+    [userId],
+  );
+  const row = rows[0] as any;
+  return row
+    ? {
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        avatarUrl: row.avatar_url,
+        createdAt: new Date(row.created_at),
+      }
+    : null;
 }
 
-async function create(pg, userData) {
-  const { rows } = await pg.query("INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *", [
-    userData.name,
-    userData.email,
-  ]);
-  return rows[0];
+export async function create(
+  pg: Queryable,
+  userData: { name: string; email: string; avatarUrl: string | null },
+): Promise<User> {
+  const { rows } = await pg.query(
+    "INSERT INTO users (name, email, avatar_url) VALUES ($1, $2, $3) RETURNING id, name, email, avatar_url, created_at",
+    [userData.name, userData.email, userData.avatarUrl],
+  );
+  const row = rows[0] as any;
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    avatarUrl: row.avatar_url,
+    createdAt: new Date(row.created_at),
+  };
 }
 ```
 
 **Tareas:**
 
 - ✅ Ejecutar queries SQL
-- ✅ Transformar resultados de BD
+- ✅ Transformar resultados de BD en tipos del dominio
 - ✅ No contiene lógica de negocio
+- ✅ Tipar retornos
 
-### Schema (`.schema.js`)
+### Schema (`.schema.ts`)
 
 **Responsabilidad:** Validar entrada (JSON Schema) y documentar endpoints.
 
-```javascript
-// src/features/auth/auth.schema.js
-const googleLoginSchema = {
+```typescript
+// src/features/auth/auth.schema.ts
+export const googleLoginSchema = {
   tags: ["auth"],
-  summary: "Login con Google",
+  summary: "Login/registro con Google",
+  description: "Verifica un id_token de Google...",
   body: {
     type: "object",
     required: ["id_token"],
+    additionalProperties: false,
     properties: {
       id_token: { type: "string", minLength: 1 },
     },
@@ -209,12 +264,13 @@ const googleLoginSchema = {
       type: "object",
       properties: {
         accessToken: { type: "string" },
-        user: {/* ... */},
+        refreshToken: { type: "string" },
+        user: { type: "object", properties: userProperties },
       },
     },
     401: { $ref: "errorResponse#" },
   },
-};
+} as const;
 ```
 
 **Tareas:**
@@ -223,16 +279,20 @@ const googleLoginSchema = {
 - ✅ Documentar respuestas (Swagger)
 - ✅ Validación automática en Fastify
 
-### Routes (`.routes.js`)
+### Routes (`.routes.ts`)
 
 **Responsabilidad:** Conectar endpoints con controllers.
 
-```javascript
-// src/features/auth/auth.routes.js
-module.exports = async function authRoutes(fastify) {
+```typescript
+// src/features/auth/auth.routes.ts
+import type { FastifyInstance } from "fastify";
+import * as authController from "./auth.controller.js";
+import { googleLoginSchema, meSchema } from "./auth.schema.js";
+
+export default async function authRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post(
     "/auth/google",
-    { schema: googleLoginSchema, config: { rateLimit: authRateLimit } },
+    { schema: googleLoginSchema },
     authController.googleLogin,
   );
 
@@ -241,7 +301,7 @@ module.exports = async function authRoutes(fastify) {
     { schema: meSchema, preHandler: [fastify.authenticate] },
     authController.getMe,
   );
-};
+}
 ```
 
 **Tareas:**
@@ -252,21 +312,19 @@ module.exports = async function authRoutes(fastify) {
 - ✅ Asociar middlewares (autenticación, rate limit)
 - ✅ Conectar con controller
 
-### Exceptions (`.exceptions.js`)
+### Exceptions (`.exceptions.ts`)
 
-**Responsabilidad:** Excepciones personalizadas del feature.
+**Responsabilidad:** Excepciones personalizadas del feature, extienden AppException.
 
-```javascript
-// src/features/users/exceptions.js
-const AppException = require("../../shared/exceptions/app-exception");
+```typescript
+// src/features/users/exceptions.ts
+import { AppException } from "../../shared/exceptions/app-exception.js";
 
-class UserNotFoundError extends AppException {
-  constructor(userId) {
+export class UserNotFoundError extends AppException {
+  constructor(userId: string) {
     super(`User not found with id '${userId}'`, 404);
   }
 }
-
-module.exports = { UserNotFoundError };
 ```
 
 ---
@@ -282,54 +340,101 @@ mkdir -p src/features/products
 cd src/features/products
 ```
 
-#### 2. Crear `product.repository.js`
+#### 2. Crear tipos de dominio en `src/shared/types.ts` (si no existen)
 
-```javascript
-// src/features/products/product.repository.js
-"use strict";
+Añade:
 
-async function findAll(pg) {
-  const { rows } = await pg.query("SELECT id, name, price FROM products");
-  return rows;
+```typescript
+export interface Product {
+  id: string;
+  name: string;
+  price: number;
+  createdAt: Date;
 }
-
-async function findById(pg, productId) {
-  const { rows } = await pg.query("SELECT id, name, price FROM products WHERE id = $1", [
-    productId,
-  ]);
-  return rows[0] || null;
-}
-
-async function create(pg, productData) {
-  const { name, price } = productData;
-  const { rows } = await pg.query(
-    "INSERT INTO products (name, price) VALUES ($1, $2) RETURNING id, name, price",
-    [name, price],
-  );
-  return rows[0];
-}
-
-module.exports = {
-  findAll,
-  findById,
-  create,
-};
 ```
 
-#### 3. Crear `product.service.js`
+#### 3. Crear `product.repository.ts`
 
-```javascript
-// src/features/products/product.service.js
-"use strict";
+```typescript
+// src/features/products/product.repository.ts
+import type { Queryable, Product } from "../../shared/types.js";
 
-const productRepository = require("./product.repository");
-const { ProductNotFoundError } = require("./exceptions");
+export async function findAll(pg: Queryable): Promise<Product[]> {
+  const { rows } = await pg.query("SELECT id, name, price, created_at FROM products");
+  return (rows as any[]).map((row) => ({
+    id: row.id,
+    name: row.name,
+    price: row.price,
+    createdAt: new Date(row.created_at),
+  }));
+}
 
-async function getProducts(pg) {
+export async function findById(pg: Queryable, productId: string): Promise<Product | null> {
+  const { rows } = await pg.query(
+    "SELECT id, name, price, created_at FROM products WHERE id = $1",
+    [productId],
+  );
+  const row = rows[0] as any;
+  return row
+    ? {
+        id: row.id,
+        name: row.name,
+        price: row.price,
+        createdAt: new Date(row.created_at),
+      }
+    : null;
+}
+
+export async function create(
+  pg: Queryable,
+  productData: { name: string; price: number },
+): Promise<Product> {
+  const { rows } = await pg.query(
+    "INSERT INTO products (name, price) VALUES ($1, $2) RETURNING id, name, price, created_at",
+    [productData.name, productData.price],
+  );
+  const row = rows[0] as any;
+  return {
+    id: row.id,
+    name: row.name,
+    price: row.price,
+    createdAt: new Date(row.created_at),
+  };
+}
+```
+
+#### 4. Crear `exceptions.ts`
+
+```typescript
+// src/features/products/exceptions.ts
+import { AppException } from "../../shared/exceptions/app-exception.js";
+
+export class ProductNotFoundError extends AppException {
+  constructor(productId: string) {
+    super(`Product not found with id '${productId}'`, 404);
+  }
+}
+
+export class InvalidPriceError extends AppException {
+  constructor() {
+    super("Price must be greater than 0", 400);
+  }
+}
+```
+
+#### 5. Crear `product.service.ts`
+
+```typescript
+// src/features/products/product.service.ts
+import type { Queryable, Product } from "../../shared/types.js";
+import * as productRepository from "./product.repository.js";
+import { ProductNotFoundError, InvalidPriceError } from "./exceptions.js";
+
+export async function getProducts(pg: Queryable): Promise<Product[]> {
   return productRepository.findAll(pg);
 }
 
-async function getProductById(pg, productId) {
+export async function getProductById(pg: Queryable, productId: string): Promise<Product> {
   const product = await productRepository.findById(pg, productId);
   if (!product) {
     throw new ProductNotFoundError(productId);
@@ -337,90 +442,69 @@ async function getProductById(pg, productId) {
   return product;
 }
 
-async function createProduct(pg, productData) {
-  // Validaciones de negocio
+export async function createProduct(
+  pg: Queryable,
+  productData: { name: string; price: number },
+): Promise<Product> {
   if (productData.price < 0) {
     throw new InvalidPriceError();
   }
   return productRepository.create(pg, productData);
 }
-
-module.exports = {
-  getProducts,
-  getProductById,
-  createProduct,
-};
 ```
 
-#### 4. Crear `exceptions.js`
+#### 6. Crear `product.controller.ts`
 
-```javascript
-// src/features/products/exceptions.js
-"use strict";
+```typescript
+// src/features/products/product.controller.ts
+import type { FastifyRequest, FastifyReply } from "fastify";
+import * as productService from "./product.service.js";
 
-const AppException = require("../../shared/exceptions/app-exception");
-
-class ProductNotFoundError extends AppException {
-  constructor(productId) {
-    super(`Product not found with id '${productId}'`, 404);
-  }
+interface GetProductRequest extends FastifyRequest {
+  params: { id: string };
 }
 
-class InvalidPriceError extends AppException {
-  constructor() {
-    super("Price must be greater than 0", 400);
-  }
+interface CreateProductRequest extends FastifyRequest {
+  body: { name: string; price: number };
 }
 
-module.exports = {
-  ProductNotFoundError,
-  InvalidPriceError,
-};
-```
-
-#### 5. Crear `product.controller.js`
-
-```javascript
-// src/features/products/product.controller.js
-"use strict";
-
-const productService = require("./product.service");
-
-async function listProducts(request, reply) {
+export async function listProducts(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
   const products = await productService.getProducts(request.server.pg);
-  return reply.send(products);
+  reply.send(products);
 }
 
-async function getProduct(request, reply) {
+export async function getProduct(
+  request: GetProductRequest,
+  reply: FastifyReply,
+): Promise<void> {
   const product = await productService.getProductById(request.server.pg, request.params.id);
-  return reply.send(product);
+  reply.send(product);
 }
 
-async function createProduct(request, reply) {
+export async function createProduct(
+  request: CreateProductRequest,
+  reply: FastifyReply,
+): Promise<void> {
   const product = await productService.createProduct(request.server.pg, request.body);
-  return reply.status(201).send(product);
+  reply.status(201).send(product);
 }
-
-module.exports = {
-  listProducts,
-  getProduct,
-  createProduct,
-};
 ```
 
-#### 6. Crear `product.schema.js`
+#### 7. Crear `product.schema.ts`
 
-```javascript
-// src/features/products/product.schema.js
-"use strict";
-
+```typescript
+// src/features/products/product.schema.ts
 const productProperties = {
   id: { type: "string", format: "uuid" },
   name: { type: "string" },
   price: { type: "number", minimum: 0 },
-};
+  created_at: { type: "string", format: "date-time" },
+} as const;
 
-const listProductsSchema = {
+export const listProductsSchema = {
   tags: ["products"],
   summary: "Listar productos",
   response: {
@@ -429,9 +513,9 @@ const listProductsSchema = {
       items: { type: "object", properties: productProperties },
     },
   },
-};
+} as const;
 
-const getProductSchema = {
+export const getProductSchema = {
   tags: ["products"],
   summary: "Obtener un producto",
   params: {
@@ -443,16 +527,17 @@ const getProductSchema = {
     200: { type: "object", properties: productProperties },
     404: { $ref: "errorResponse#" },
   },
-};
+} as const;
 
-const createProductSchema = {
+export const createProductSchema = {
   tags: ["products"],
   summary: "Crear producto",
   body: {
     type: "object",
     required: ["name", "price"],
+    additionalProperties: false,
     properties: {
-      name: { type: "string" },
+      name: { type: "string", minLength: 1 },
       price: { type: "number", minimum: 0 },
     },
   },
@@ -460,65 +545,115 @@ const createProductSchema = {
     201: { type: "object", properties: productProperties },
     400: { $ref: "errorResponse#" },
   },
-};
+} as const;
+```
 
-module.exports = {
+#### 8. Crear `product.routes.ts`
+
+```typescript
+// src/features/products/product.routes.ts
+import type { FastifyInstance } from "fastify";
+import * as productController from "./product.controller.js";
+import {
   listProductsSchema,
   getProductSchema,
   createProductSchema,
-};
-```
+} from "./product.schema.js";
 
-#### 7. Crear `product.routes.js`
+export default async function productRoutes(fastify: FastifyInstance): Promise<void> {
+  fastify.get(
+    "/products",
+    { schema: listProductsSchema },
+    productController.listProducts,
+  );
 
-```javascript
-// src/features/products/product.routes.js
-"use strict";
-
-const productController = require("./product.controller");
-const { listProductsSchema, getProductSchema, createProductSchema } = require("./product.schema");
-
-module.exports = async function productRoutes(fastify) {
-  fastify.get("/products", { schema: listProductsSchema }, productController.listProducts);
-
-  fastify.get("/products/:id", { schema: getProductSchema }, productController.getProduct);
+  fastify.get(
+    "/products/:id",
+    { schema: getProductSchema },
+    productController.getProduct,
+  );
 
   fastify.post(
     "/products",
     { schema: createProductSchema, preHandler: [fastify.authenticate] },
     productController.createProduct,
   );
+}
+```
+
+#### 9. Registrar las rutas en `src/app.ts`
+
+```typescript
+// En src/app.ts, agregar (después de importar):
+import productRoutes from "./features/products/product.routes.js";
+
+// Y en la función build():
+await fastify.register(productRoutes);
+```
+
+#### 10. Crear la migración
+
+```bash
+pnpm migrate:create add_products_table
+```
+
+Luego edita `migrations/<timestamp>_add_products_table.ts`:
+
+```typescript
+import type { MigrationBuilder } from "node-pg-migrate";
+
+export const up = (pgm: MigrationBuilder): void => {
+  pgm.createTable("products", {
+    id: {
+      type: "uuid",
+      primaryKey: true,
+      default: pgm.func("gen_random_uuid()"),
+    },
+    name: { type: "varchar(255)", notNull: true },
+    price: { type: "numeric(10,2)", notNull: true },
+    created_at: {
+      type: "timestamptz",
+      notNull: true,
+      default: pgm.func("now()"),
+    },
+  });
+};
+
+export const down = (pgm: MigrationBuilder): void => {
+  pgm.dropTable("products");
 };
 ```
 
-#### 8. Registrar las rutas en `src/app.js`
+Aplica la migración:
 
-```javascript
-// En src/app.js, agregar:
-fastify.register(require("./features/products/product.routes"));
+```bash
+pnpm migrate:up
 ```
 
-#### 9. ¡Listo!
+#### 11. ¡Listo!
 
 La feature está lista. Los endpoints estarán disponibles en:
 
 - `GET /products` - Listar todos
 - `GET /products/:id` - Obtener uno
-- `POST /products` - Crear nuevo
+- `POST /products` - Crear nuevo (requiere autenticación)
 
 ---
 
 ## 📝 Checklist para una Nueva Feature
 
-- [ ] Escribir tests (opcional pero recomendado)
 - [ ] Crear carpeta `src/features/nombre/`
-- [ ] Crear `nombre.repository.js` - Acceso a datos
-- [ ] Crear `nombre.service.js` - Lógica de negocio
-- [ ] Crear `exceptions.js` - Errores personalizados
-- [ ] Crear `nombre.controller.js` - Manejadores HTTP
-- [ ] Crear `nombre.schema.js` - Validaciones y docs
-- [ ] Crear `nombre.routes.js` - Definir endpoints
-- [ ] Registrar rutas en `src/app.js`
+- [ ] Crear tipos en `src/shared/types.ts` (si es necesario)
+- [ ] Crear `nombre.repository.ts` - Acceso a datos (tipado)
+- [ ] Crear `nombre.service.ts` - Lógica de negocio (tipado)
+- [ ] Crear `exceptions.ts` - Errores personalizados (extienden AppException)
+- [ ] Crear `nombre.controller.ts` - Manejadores HTTP (tipados con FastifyRequest/Reply)
+- [ ] Crear `nombre.schema.ts` - Validaciones y docs (JSON Schema)
+- [ ] Crear `nombre.routes.ts` - Definir endpoints (async, return Promise<void>)
+- [ ] Registrar rutas en `src/app.ts` (await fastify.register)
+- [ ] Crear migración (pnpm migrate:create) y aplicar (pnpm migrate:up)
+- [ ] Escribir tests en `test/nombre.test.ts` (opcional pero recomendado)
+- [ ] Crear `rest/nombre.rest` para pruebas manuales (opcional)
 
 ---
 
@@ -526,30 +661,50 @@ La feature está lista. Los endpoints estarán disponibles en:
 
 ### Manejar errores en controller
 
-```javascript
-async function createUser(request, reply) {
+```typescript
+import type { FastifyRequest, FastifyReply } from "fastify";
+
+interface CreateUserRequest extends FastifyRequest {
+  body: { email: string; name: string };
+}
+
+export async function createUser(
+  request: CreateUserRequest,
+  reply: FastifyReply,
+): Promise<void> {
   try {
     const user = await userService.createUser(request.server.pg, request.body);
-    return reply.status(201).send(user);
+    reply.status(201).send(user);
   } catch (err) {
     if (err instanceof DuplicateEmailError) {
-      return reply.status(400).send({ error: err.message });
+      reply.status(400).send({ error: "Bad Request", message: err.message });
+      return;
     }
-    throw err; // Dejar que error-handler.js lo maneje
+    throw err; // Dejar que error-handler.ts lo maneje
   }
 }
 ```
 
 ### Usar transacciones en service
 
-```javascript
-async function createUserWithProfile(pg, userData) {
-  const client = await pg.connect();
+```typescript
+import type { PoolClient } from "pg";
+import type { Queryable } from "../../shared/types.js";
+
+export async function createUserWithProfile(
+  pg: Queryable & { connect?(): Promise<PoolClient> },
+  userData: { name: string; email: string; profileData: unknown },
+): Promise<User> {
+  const client = await (pg as any).connect();
   try {
     await client.query("BEGIN");
 
-    const user = await userRepository.create(client, userData);
-    await profileRepository.create(client, user.id, userData.profile);
+    const user = await userRepository.create(client as Queryable, userData);
+    await profileRepository.create(
+      client as Queryable,
+      user.id,
+      userData.profileData,
+    );
 
     await client.query("COMMIT");
     return user;
@@ -564,16 +719,39 @@ async function createUserWithProfile(pg, userData) {
 
 ### Reutilizar schemas comunes
 
-```javascript
-// En product.schema.js
-const { userProperties } = require("../users/user.schema");
+```typescript
+// En product.schema.ts
+import { userProperties } from "../users/user.schema.js";
 
-const productWithOwnerSchema = {
+export const productWithOwnerSchema = {
   type: "object",
   properties: {
-    id: { type: "string" },
+    id: { type: "string", format: "uuid" },
     name: { type: "string" },
     owner: { type: "object", properties: userProperties },
   },
-};
+} as const;
+```
+
+### Tipar genéricos de Fastify
+
+```typescript
+// En auth.routes.ts
+import type { FastifyInstance, FastifyRequest } from "fastify";
+
+interface LoginBody {
+  email: string;
+  password: string;
+}
+
+export default async function authRoutes(fastify: FastifyInstance): Promise<void> {
+  fastify.post<{ Body: LoginBody }>(
+    "/auth/login",
+    { schema: loginSchema },
+    async (request, reply) => {
+      const { email, password } = request.body; // Tipado como LoginBody
+      // ...
+    },
+  );
+}
 ```

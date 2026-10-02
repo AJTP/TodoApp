@@ -1,8 +1,8 @@
 DC ?= docker-compose
 
 .PHONY: help install env up dev down stop build build-no-cache logs ps shell \
-	migrate-up migrate-down migrate-create lint \
-	test test-build test-down test-logs clean
+	migrate-up migrate-down migrate-create lint typecheck format \
+	test test-down test-logs clean
 
 help:
 	@echo "Comandos disponibles:"
@@ -19,7 +19,9 @@ help:
 	@echo "  make migrate-up      Aplica las migraciones pendientes"
 	@echo "  make migrate-down    Revierte la última migración"
 	@echo "  make migrate-create name=nombre-migracion   Crea una nueva migración"
-	@echo "  make lint            Comprueba el formato con Prettier (no modifica archivos)"
+	@echo "  make typecheck       Comprueba tipos de TypeScript (tsc --noEmit)"
+	@echo "  make lint            Comprueba linting y formato (tsc, eslint, prettier)"
+	@echo "  make format          Formatea el código con Prettier"
 	@echo "  make test            Ejecuta los tests en su contenedor aislado (con su propia BD)"
 	@echo "  make test-down       Elimina los contenedores/volúmenes del entorno de test"
 	@echo "  make clean           Elimina contenedores y volúmenes de desarrollo"
@@ -64,8 +66,11 @@ migrate-down:
 migrate-create:
 	$(DC) exec backend pnpm migrate:create $(name)
 
-lint:
-	pnpm format:check
+typecheck:
+	pnpm typecheck
+
+lint: typecheck
+	pnpm lint
 
 format:
 	pnpm format

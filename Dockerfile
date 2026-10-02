@@ -27,6 +27,11 @@ FROM base AS test
 COPY . .
 CMD ["pnpm", "run", "test:ci"]
 
+# ---- build: compila TypeScript a JavaScript ----
+FROM base AS build
+COPY . .
+RUN pnpm run build
+
 # ---- producción: solo dependencias de runtime ----
 FROM node:22-alpine AS prod
 ARG STRICT_SSL
@@ -38,7 +43,8 @@ COPY package.json pnpm-lock.yaml* ./
 RUN set -eu; \
   if [ "$STRICT_SSL" = "false" ]; then export NODE_TLS_REJECT_UNAUTHORIZED=0; fi; \
   pnpm install --prod --frozen-lockfile
-COPY src ./src
+COPY --from=build /app/dist ./dist
 COPY migrations ./migrations
 EXPOSE 3000
-CMD ["pnpm", "start"]
+USER node
+CMD ["node", "dist/server.js"]

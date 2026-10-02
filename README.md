@@ -2,38 +2,45 @@
 
 Plantilla genérica para arrancar cualquier proyecto backend con:
 
-- **Node.js** + **Fastify** (JavaScript, CommonJS)
+- **Node.js** + **Fastify** (TypeScript, ESM)
 - **PostgreSQL** como base de datos
 - **Docker** para desarrollo y para tests (contenedores independientes)
 - **AJV / JSON Schema** para validar rutas y variables de entorno
-- **node-pg-migrate** para migraciones de base de datos
-- **Jest** para tests de integración
+- **node-pg-migrate** para migraciones de base de datos (en TypeScript)
+- **Vitest** para tests de integración
+- **TypeScript** con strict mode y ESLint + typescript-eslint
 - **OpenAPI (`@fastify/swagger`) + Scalar** para documentación interactiva de la API
-- **GitHub Actions** ejecutando lint y tests en cada PR
+- **GitHub Actions** ejecutando type-checking, lint y tests en cada PR
 
 ## Estructura
 
 ```
 src/
-  app.js            # construye la instancia de Fastify (autoload de plugins/routes)
-  server.js         # arranca el servidor HTTP
+  app.ts            # construye la instancia de Fastify (autoload de plugins/routes)
+  server.ts         # arranca el servidor HTTP
   config/           # carga y valida variables de entorno con AJV
   plugins/          # plugins de Fastify (BD, JWT, autorización, manejo de errores, esquemas compartidos)
-  schemas/          # esquemas AJV (JSON Schema) por entidad
-  routes/           # definición de endpoints, referencian los esquemas
-  handlers/         # lógica de negocio y acceso a datos
-  providers/        # verificación específica de cada proveedor de identidad (Google, ...)
-  services/         # lógica de negocio compartida entre handlers (ej. alta/enlace de usuarios)
-migrations/         # migraciones de node-pg-migrate
-test/               # tests de integración con Jest (fastify.inject)
+  features/         # features organizadas por dominio
+    auth/           # autenticación: routes, controller, service, repository, schema, exceptions
+    users/          # usuarios: routes, controller, service, repository, schema, exceptions
+    health/         # health check
+    providers/      # verificación específica de cada proveedor de identidad (Google, ...)
+  shared/           # código compartido
+    types.ts        # tipos de dominio (User, Identity, etc.)
+    exceptions/     # excepciones base (AppException)
+    schemas/        # esquemas AJV compartidos (errorResponse)
+  types/            # declaraciones de tipos para módulos externos (fastify.d.ts)
+migrations/         # migraciones de node-pg-migrate (en TypeScript)
+test/               # tests de integración con Vitest (fastify.inject)
 rest/               # ficheros .rest para probar endpoints (extensión REST Client de VSCode)
+dist/               # salida compilada (generado por `pnpm build`)
 ```
 
 ## Documentación interactiva (Scalar)
 
 Con el servidor levantado, abre `http://localhost:3000/reference` para ver la documentación interactiva de la API (generada a partir de los esquemas AJV de cada ruta vía `@fastify/swagger`, renderizada con [Scalar](https://scalar.com)). El documento OpenAPI en bruto está en `/reference/openapi.json` (o `.yaml`).
 
-Para documentar una ruta nueva, añade `tags`, `summary`/`description` y, si está protegida, `security: [{ bearerAuth: [] }]` a su esquema AJV (ver `src/schemas/auth.schema.js` como ejemplo) — no hace falta tocar `src/plugins/swagger.js`.
+Para documentar una ruta nueva, añade `tags`, `summary`/`description` y, si está protegida, `security: [{ bearerAuth: [] }]` a su esquema AJV (ver `src/features/auth/auth.schema.ts` como ejemplo) — no hace falta tocar `src/plugins/swagger.ts`.
 
 ## Autenticación e identidades
 
@@ -47,13 +54,13 @@ Cada login (`POST /auth/google`) devuelve `{ accessToken, refreshToken, user }`.
 
 `POST /auth/logout` (protegido) revoca de golpe **todos** los refresh tokens vivos del usuario autenticado (todas las sesiones/dispositivos), para el caso de robo de dispositivo o simplemente cerrar sesión en todos lados. El `accessToken` en curso sigue siendo válido hasta que expire por su cuenta (es un JWT stateless, no se puede revocar antes de tiempo), pero ya no podrá renovarse con `/auth/refresh`.
 
-`src/services/identity.service.js` centraliza la lógica de "buscar la identidad o crear/enlazar el usuario", independiente del proveedor. `src/providers/google.js` verifica el `id_token` de Google y devuelve un perfil normalizado (`{ provider, providerUserId, email, name, avatarUrl }`) que ese servicio consume.
+`src/features/auth/identity.service.ts` centraliza la lógica de "buscar la identidad o crear/enlazar el usuario", independiente del proveedor. `src/features/providers/google.ts` verifica el `id_token` de Google y devuelve un perfil normalizado (`{ provider, providerUserId, email, emailVerified, name, avatarUrl }`) que ese servicio consume.
 
 ### Añadir un nuevo proveedor de identidad
 
-1. Crea `src/providers/<proveedor>.js` con una función que verifique la credencial de ese proveedor (token, code, etc.) y devuelva `{ provider: '<proveedor>', providerUserId, email, emailVerified, name, avatarUrl }`. `emailVerified` debe reflejar si el proveedor confirma que el email es del usuario (ej. `email_verified` en Google) — si no es `true`, `identity.service.js` rechaza la creación/enlace de cuenta por email para evitar que alguien reclame la cuenta de otra persona.
-2. Añade un endpoint en `src/routes/auth.routes.js` (ej. `POST /auth/<proveedor>`) con su handler en `src/handlers/auth.handlers.js`, que llame a esa función y luego a `findOrCreateUserFromIdentity` de `identity.service.js`.
-3. Si el proveedor requiere client id/secret, añádelos a `src/config/index.js` y a `.env.example`.
+1. Crea `src/features/providers/<proveedor>.ts` con una función que verifique la credencial de ese proveedor (token, code, etc.) y devuelva `{ provider: '<proveedor>', providerUserId, email, emailVerified, name, avatarUrl }`. `emailVerified` debe reflejar si el proveedor confirma que el email es del usuario (ej. `email_verified` en Google) — si no es `true`, `identity.service.ts` rechaza la creación/enlace de cuenta por email para evitar que alguien reclame la cuenta de otra persona.
+2. Añade un endpoint en `src/features/auth/auth.routes.ts` (ej. `POST /auth/<proveedor>`) con su handler en `src/features/auth/auth.controller.ts`, que llame a esa función y luego a `findOrCreateUserFromIdentity` de `identity.service.ts`.
+3. Si el proveedor requiere client id/secret, añádelos a `src/config/index.ts` y a `.env.example`.
 
 No hace falta tocar el esquema de `users` ni `identities` para añadir proveedores nuevos.
 
@@ -98,7 +105,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Esto levanta dos contenedores: `db` (Postgres persistente) y `backend` (Fastify con hot-reload vía nodemon, puerto 3000).
+Esto levanta dos contenedores: `db` (Postgres persistente) y `backend` (Fastify con hot-reload vía tsx, puerto 3000).
 
 Aplicar migraciones dentro del contenedor de backend:
 
@@ -115,7 +122,7 @@ cp .env.test.example .env.test
 docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from test
 ```
 
-El contenedor `test` migra automáticamente `db-test` y luego ejecuta Jest (`pnpm run test:ci`).
+El contenedor `test` migra automáticamente `db-test` y luego ejecuta Vitest (`pnpm run test:ci`).
 
 Para limpiar el contenedor/volumen de test:
 
@@ -131,7 +138,15 @@ Requiere Node 22+, pnpm y un Postgres accesible via `DATABASE_URL`.
 pnpm install
 cp .env.example .env
 pnpm migrate:up
-pnpm dev
+pnpm dev  # inicia tsx watch src/server.ts con recarga en caliente
+```
+
+Para ejecutar los tests localmente (contra el mismo Postgres de desarrollo):
+
+```bash
+pnpm test --run  # una sola pasada
+# o
+pnpm test  # modo watch
 ```
 
 ## Estilo de código (Prettier)
@@ -149,27 +164,37 @@ Configura tu editor para formatear al guardar con Prettier, o ejecuta `pnpm form
 
 `.github/workflows/ci.yml` corre en cada Pull Request (y en push a `main`):
 
-- **lint**: `make lint` (Prettier en modo check, sin Docker).
-- **test**: `make test` con Docker Compose (misma suite que en local, contra Postgres real).
+- **typecheck**: `pnpm typecheck` (TypeScript strict mode, sin Docker).
+- **lint**: `pnpm lint` (ESLint + Prettier en modo check, sin Docker).
+- **test**: `make test` con Docker Compose (Vitest, misma suite que en local, contra Postgres real).
 
 ## Scripts
 
 | Script                | Descripción                                  |
 | --------------------- | -------------------------------------------- |
-| `pnpm dev`            | Arranca el servidor con hot-reload (nodemon) |
-| `pnpm start`          | Arranca el servidor en modo producción       |
+| `pnpm build`          | Compila TypeScript a JavaScript (`dist/`)    |
+| `pnpm dev`            | Arranca el servidor con hot-reload (tsx)     |
+| `pnpm start`          | Arranca el servidor compilado en producción  |
 | `pnpm migrate:up`     | Aplica migraciones pendientes                |
 | `pnpm migrate:down`   | Revierte la última migración                 |
 | `pnpm migrate:create` | Crea un nuevo fichero de migración           |
-| `pnpm test`           | Ejecuta los tests con Jest                   |
+| `pnpm typecheck`      | Comprueba tipos de TypeScript (tsc --noEmit) |
+| `pnpm lint`           | Ejecuta ESLint y Prettier (comprobación)     |
+| `pnpm test`           | Ejecuta los tests con Vitest (modo watch)    |
+| `pnpm test:watch`     | Alias de `pnpm test`                         |
 | `pnpm test:ci`        | Migra la BD de test y ejecuta los tests      |
 | `pnpm format`         | Reformatea todo el proyecto con Prettier     |
 | `pnpm format:check`   | Comprueba el formato sin modificar archivos  |
 
 ## Añadir un nuevo recurso
 
-1. Crea el esquema AJV en `src/schemas/<recurso>.schema.js` (añade `tags`/`summary`/`security` para que aparezca bien documentado en `/reference`).
-2. Crea los handlers en `src/handlers/<recurso>.handlers.js`.
-3. Crea las rutas en `src/routes/<recurso>.routes.js` (se autocargan).
-4. Crea la migración con `pnpm migrate:create <nombre>` y aplícala con `pnpm migrate:up`.
-5. Crea `rest/<recurso>.rest` con las peticiones de ejemplo para ese recurso.
+1. Crea la carpeta `src/features/<recurso>/`.
+2. Crea el esquema AJV en `src/features/<recurso>/<recurso>.schema.ts` (añade `tags`/`summary`/`security` para que aparezca bien documentado en `/reference`).
+3. Crea los tipos/excepciones en `src/features/<recurso>/exceptions.ts` (si es necesario).
+4. Crea el repositorio en `src/features/<recurso>/<recurso>.repository.ts` (acceso a datos).
+5. Crea el servicio en `src/features/<recurso>/<recurso>.service.ts` (lógica de negocio).
+6. Crea el controlador en `src/features/<recurso>/<recurso>.controller.ts` (handlers de rutas).
+7. Crea las rutas en `src/features/<recurso>/<recurso>.routes.ts` (se cargan explícitamente en `src/app.ts`).
+8. Crea la migración con `pnpm migrate:create <nombre>` y aplícala con `pnpm migrate:up`.
+9. Crea `rest/<recurso>.rest` con las peticiones de ejemplo para ese recurso.
+10. Crea los tests en `test/<recurso>.test.ts`.
