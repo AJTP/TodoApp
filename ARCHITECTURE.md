@@ -10,8 +10,13 @@ src/
 ├── shared/                # Código compartido
 ├── plugins/               # Plugins de Fastify
 ├── config/                # Configuración centralizada
-├── app.js                 # Factory de la aplicación
-└── server.js              # Punto de entrada
+├── types/                 # Declaraciones de tipos (fastify.d.ts)
+├── app.ts                 # Factory de la aplicación
+└── server.ts              # Punto de entrada
+
+migrations/                # Migraciones de node-pg-migrate (TypeScript)
+templates/                 # Plantilla para `pnpm migrate:create`
+test/                      # Tests de integración (Vitest)
 ```
 
 ---
@@ -80,8 +85,20 @@ Extensiones y middlewares de Fastify.
 
 ### Archivos Raíz
 
-- **`src/app.ts`** - Factory que construye la instancia de Fastify
+- **`src/app.ts`** - Factory que construye la instancia de Fastify: registra los compiladores de Zod, los plugins (en orden explícito) y las rutas de cada feature
 - **`src/server.ts`** - Punto de entrada: inicia la app
+
+### Convención de imports (`.js` en archivos `.ts`)
+
+El proyecto es ESM con `moduleResolution: NodeNext`, que exige extensión en los imports relativos. Se escribe siempre `.js`, aunque el archivo real sea `.ts`: TypeScript, `tsx` y Vitest lo resuelven al `.ts` y `tsc` emite `.js` en `dist/`.
+
+```typescript
+import config from "../config/index.js"; // ✅ aunque exista config/index.ts
+import config from "../config/index"; //    ❌ error TS2835
+import config from "../config/index.ts"; //  ❌ requiere allowImportingTsExtensions
+```
+
+Por eso los plugins se registran explícitamente en `app.ts` (y no con `@fastify/autoload`, que usa `import()` nativo de Node y no entiende `.ts` bajo Vitest).
 
 ---
 
@@ -354,7 +371,7 @@ export async function findAll(pg: Queryable): Promise<Product[]> {
   return (rows as any[]).map((row) => ({
     id: row.id,
     name: row.name,
-    price: row.price,
+    price: Number(row.price), // numeric de Postgres llega como string
     createdAt: new Date(row.created_at),
   }));
 }
@@ -369,7 +386,7 @@ export async function findById(pg: Queryable, productId: string): Promise<Produc
     ? {
         id: row.id,
         name: row.name,
-        price: row.price,
+        price: Number(row.price), // numeric de Postgres llega como string
         createdAt: new Date(row.created_at),
       }
     : null;
@@ -387,7 +404,7 @@ export async function create(
   return {
     id: row.id,
     name: row.name,
-    price: row.price,
+    price: Number(row.price), // numeric de Postgres llega como string
     createdAt: new Date(row.created_at),
   };
 }

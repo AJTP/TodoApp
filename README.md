@@ -19,7 +19,7 @@ src/
   app.ts            # construye la instancia de Fastify (registra plugins y rutas explícitamente)
   server.ts         # arranca el servidor HTTP
   config/           # carga y valida variables de entorno con Zod
-  plugins/          # plugins de Fastify (BD, JWT, autorización, manejo de errores, esquemas compartidos)
+  plugins/          # plugins de Fastify (BD, JWT, CORS, rate limit, autorización, errores, Swagger)
   features/         # features organizadas por dominio
     auth/           # autenticación: routes, controller, service, repository, schema, exceptions
     users/          # usuarios: routes, controller, service, repository, schema, exceptions
@@ -27,10 +27,12 @@ src/
     providers/      # verificación específica de cada proveedor de identidad (Google, ...)
   shared/           # código compartido
     types.ts        # tipos de dominio (User, Identity, etc.)
+    fastify-types.ts # ZodRequest/ZodReply: tipos de controllers a partir del schema de la ruta
     exceptions/     # excepciones base (AppException)
     schemas/        # schemas Zod compartidos (errorResponse)
   types/            # declaraciones de tipos para módulos externos (fastify.d.ts)
 migrations/         # migraciones de node-pg-migrate (en TypeScript)
+templates/          # plantilla de migración usada por `pnpm migrate:create`
 test/               # tests de integración con Vitest (fastify.inject)
 rest/               # ficheros .rest para probar endpoints (extensión REST Client de VSCode)
 dist/               # salida compilada (generado por `pnpm build`)
@@ -132,7 +134,7 @@ docker compose -f docker-compose.test.yml down -v
 
 ## Desarrollo sin Docker
 
-Requiere Node 22+, pnpm y un Postgres accesible via `DATABASE_URL`.
+Requiere Node 22+, pnpm y un Postgres accesible via `DATABASE_URL`. En `.env.example` el host es `db` (servicio de Docker Compose): sin Docker cámbialo por `localhost` (o `localhost:5435` si usas el Postgres de `docker-compose.yml`).
 
 ```bash
 pnpm install
@@ -149,16 +151,23 @@ pnpm test --run  # una sola pasada
 pnpm test  # modo watch
 ```
 
-## Estilo de código (Prettier)
+## Estilo de código (ESLint + Prettier)
 
-El proyecto usa [Prettier](https://prettier.io) (config en `.prettierrc.json`) para que todo el equipo formatee igual sin discutirlo caso a caso:
+El proyecto usa [ESLint](https://eslint.org) con typescript-eslint (config en `eslint.config.js`) y [Prettier](https://prettier.io) (config en `.prettierrc.json`) para que todo el equipo escriba y formatee igual sin discutirlo caso a caso:
 
 ```bash
-pnpm format        # reformatea todo el proyecto
-pnpm format:check  # solo comprueba, no modifica (útil en CI)
+pnpm lint          # ESLint + comprobación de formato (no modifica archivos)
+pnpm format        # reformatea todo el proyecto con Prettier
+pnpm format:check  # solo comprueba el formato (útil en CI)
 ```
 
 Configura tu editor para formatear al guardar con Prettier, o ejecuta `pnpm format` antes de cada commit.
+
+## Convenciones de TypeScript
+
+- **Imports relativos con extensión `.js`**, aunque el archivo sea `.ts` (ESM + `moduleResolution: NodeNext`). Detalle en `ARCHITECTURE.md`.
+- **Plugins registrados explícitamente** en `src/app.ts` (no hay autoload).
+- **Controllers tipados con `ZodRequest`/`ZodReply`**, sin casts; los tipos salen del schema Zod de la ruta.
 
 ## Integración continua (GitHub Actions)
 
@@ -175,13 +184,14 @@ Configura tu editor para formatear al guardar con Prettier, o ejecuta `pnpm form
 | `pnpm build`          | Compila TypeScript a JavaScript (`dist/`)    |
 | `pnpm dev`            | Arranca el servidor con hot-reload (tsx)     |
 | `pnpm start`          | Arranca el servidor compilado en producción  |
-| `pnpm migrate:up`     | Aplica migraciones pendientes                |
+| `pnpm migrate:up`     | Aplica migraciones pendientes (`--tsx`)      |
 | `pnpm migrate:down`   | Revierte la última migración                 |
-| `pnpm migrate:create` | Crea un nuevo fichero de migración           |
+| `pnpm migrate:create` | Crea una migración `.ts` desde la plantilla  |
 | `pnpm typecheck`      | Comprueba tipos de TypeScript (tsc --noEmit) |
 | `pnpm lint`           | Ejecuta ESLint y Prettier (comprobación)     |
 | `pnpm test`           | Ejecuta los tests con Vitest (modo watch)    |
 | `pnpm test:watch`     | Alias de `pnpm test`                         |
+| `pnpm test:ui`        | Abre la interfaz web de Vitest               |
 | `pnpm test:ci`        | Migra la BD de test y ejecuta los tests      |
 | `pnpm format`         | Reformatea todo el proyecto con Prettier     |
 | `pnpm format:check`   | Comprueba el formato sin modificar archivos  |
@@ -190,11 +200,11 @@ Configura tu editor para formatear al guardar con Prettier, o ejecuta `pnpm form
 
 1. Crea la carpeta `src/features/<recurso>/`.
 2. Crea el schema Zod en `src/features/<recurso>/<recurso>.schema.ts` (añade `tags`/`summary`/`security` para que aparezca bien documentado en `/reference`).
-3. Crea los tipos/excepciones en `src/features/<recurso>/exceptions.ts` (si es necesario).
+3. Añade el tipo de dominio en `src/shared/types.ts` y, si hace falta, las excepciones en `src/features/<recurso>/exceptions.ts`.
 4. Crea el repositorio en `src/features/<recurso>/<recurso>.repository.ts` (acceso a datos).
 5. Crea el servicio en `src/features/<recurso>/<recurso>.service.ts` (lógica de negocio).
 6. Crea el controlador en `src/features/<recurso>/<recurso>.controller.ts` (handlers de rutas).
-7. Crea las rutas en `src/features/<recurso>/<recurso>.routes.ts` (se cargan explícitamente en `src/app.ts`).
+7. Crea las rutas en `src/features/<recurso>/<recurso>.routes.ts` y regístralas en `src/app.ts`.
 8. Crea la migración con `pnpm migrate:create <nombre>` y aplícala con `pnpm migrate:up`.
 9. Crea `rest/<recurso>.rest` con las peticiones de ejemplo para ese recurso.
 10. Crea los tests en `test/<recurso>.test.ts`.

@@ -87,9 +87,9 @@ src/
 ### ✅ ESM Nativo
 
 - `"type": "module"` en `package.json`
-- Imports con extensión `.js` → compatible con build a CommonJS
-- `tsx watch` para desarrollo (como nodemon pero mejor)
-- `tsc` para build a `dist/`
+- Imports relativos siempre con extensión `.js` (requisito de `moduleResolution: NodeNext`), aunque el archivo sea `.ts`
+- `tsx watch` para desarrollo con recarga en caliente
+- `tsc` para compilar a `dist/`
 
 ### ✅ Tests Automatizados
 
@@ -170,8 +170,13 @@ mkdir -p src/features/products
 import type { Queryable, Product } from "../../shared/types.js";
 
 export async function findAll(pg: Queryable): Promise<Product[]> {
-  const { rows } = await pg.query("SELECT * FROM products");
-  return rows as Product[];
+  const { rows } = await pg.query("SELECT id, name, price, created_at FROM products");
+  return (rows as any[]).map((row) => ({
+    id: row.id,
+    name: row.name,
+    price: Number(row.price), // numeric de Postgres llega como string
+    createdAt: new Date(row.created_at),
+  }));
 }
 ```
 
@@ -179,6 +184,7 @@ export async function findAll(pg: Queryable): Promise<Product[]> {
 
 ```typescript
 import * as productRepository from "./product.repository.js";
+import type { Queryable, Product } from "../../shared/types.js";
 
 export async function getProducts(pg: Queryable): Promise<Product[]> {
   return productRepository.findAll(pg);
@@ -258,6 +264,7 @@ export const up = (pgm: MigrationBuilder): void => {
     id: { type: "uuid", primaryKey: true, default: pgm.func("gen_random_uuid()") },
     name: { type: "varchar(255)", notNull: true },
     price: { type: "numeric(10,2)", notNull: true },
+    created_at: { type: "timestamptz", notNull: true, default: pgm.func("now()") },
   });
 };
 
@@ -277,10 +284,11 @@ pnpm migrate:up
 ```typescript
 // test/products.test.ts
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { buildTestApp, truncateAll } from "./setup.js";
+import type { FastifyInstance } from "fastify";
+import { buildTestApp } from "./setup.js";
 
 describe("products", () => {
-  let app;
+  let app: FastifyInstance;
 
   beforeAll(async () => {
     app = await buildTestApp();
@@ -320,13 +328,15 @@ Copia `.env.example` a `.env` y personaliza:
 ```env
 NODE_ENV=development
 PORT=3000
-DATABASE_URL=postgres://user:pass@localhost:5432/mydb
+DATABASE_URL=postgres://postgres:postgres@db:5432/app_dev
 GOOGLE_CLIENT_ID=<tu-client-id>.apps.googleusercontent.com
 JWT_SECRET=<una-string-larga-aleatoria-min-32-chars>
 JWT_EXPIRES_IN=1h
 ```
 
-Todas están validadas en `src/config/index.ts` con Zod.
+`db` es el nombre del servicio Postgres en Docker Compose. Si ejecutas `pnpm dev` sin Docker, usa `localhost:5435` (puerto publicado por `docker-compose.yml`) o la URL de tu propio Postgres.
+
+Todas están validadas en `src/config/index.ts` con Zod (`.env.example` documenta también las opcionales: `CORS_ORIGIN`, `AUTH_RATE_LIMIT_MAX`, `STRICT_SSL`...).
 
 ---
 
@@ -334,7 +344,11 @@ Todas están validadas en `src/config/index.ts` con Zod.
 
 ### "Module not found" en tests
 
-→ Usa `.js` al importar (ESM native), aunque el archivo sea `.ts`.
+→ Los imports relativos llevan extensión `.js` aunque el archivo sea `.ts` (ver la convención en `ARCHITECTURE.md`). Sin extensión, `tsc` da el error TS2835.
+
+### "Cannot find module ... .js" al cargar plugins
+
+→ No cargues plugins con `@fastify/autoload`: usa `import()` nativo de Node, que no mapea `.js` a `.ts`. Regístralos con imports estáticos en `src/app.ts`.
 
 ### TypeError: Cannot use import statement outside a module
 
@@ -342,7 +356,7 @@ Todas están validadas en `src/config/index.ts` con Zod.
 
 ### TypeScript error en migraciones
 
-→ Las migraciones usan `tsx` automáticamente; node-pg-migrate puede compilar `.ts` with `--compileOnFly`.
+→ Los scripts `migrate:*` ejecutan `node-pg-migrate` con `--tsx`, que carga las migraciones `.ts` directamente. Si lo lanzas a mano, añade `--tsx`.
 
 ### Docker build falla en redes corporativas
 
@@ -354,7 +368,8 @@ Todas están validadas en `src/config/index.ts` con Zod.
 
 - **Este archivo** → primeros pasos
 - **`README.md`** → descripción técnica, scripts, decisiones
-- **`ARCHITECTURE.md`** → patrones, estructura de features, ejemplo completo
+- **`ARCHITECTURE.md`** → patrones, estructura de features, convención de imports, ejemplo completo
+- **`rest/*.rest`** → peticiones de ejemplo (extensión REST Client de VSCode)
 - **`src/types/fastify.d.ts`** → tipos de Fastify y decoradores
 
 ---
