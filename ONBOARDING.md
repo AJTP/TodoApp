@@ -58,6 +58,12 @@ src/
 
 ## 🔑 Características Principales
 
+### ✅ Validación Tipada con Zod
+
+- Validación segura de variables de entorno en `src/config/`
+- Schemas Zod reutilizables en `src/shared/validation.ts`
+- Validación automática de request body con JSON Schema (Fastify + AJV)
+
 ### ✅ Autenticación con Google + Refresh Tokens
 
 - Login sin contraseña mediante `id_token` de Google

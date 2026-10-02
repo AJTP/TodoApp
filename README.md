@@ -5,7 +5,8 @@ Plantilla genérica para arrancar cualquier proyecto backend con:
 - **Node.js** + **Fastify** (TypeScript, ESM)
 - **PostgreSQL** como base de datos
 - **Docker** para desarrollo y para tests (contenedores independientes)
-- **AJV / JSON Schema** para validar rutas y variables de entorno
+- **Zod** para validación tipada de variables de entorno
+- **JSON Schema** + **Fastify** para validación automática de rutas
 - **node-pg-migrate** para migraciones de base de datos (en TypeScript)
 - **Vitest** para tests de integración
 - **TypeScript** con strict mode y ESLint + typescript-eslint
@@ -18,7 +19,7 @@ Plantilla genérica para arrancar cualquier proyecto backend con:
 src/
   app.ts            # construye la instancia de Fastify (autoload de plugins/routes)
   server.ts         # arranca el servidor HTTP
-  config/           # carga y valida variables de entorno con AJV
+  config/           # carga y valida variables de entorno con Zod
   plugins/          # plugins de Fastify (BD, JWT, autorización, manejo de errores, esquemas compartidos)
   features/         # features organizadas por dominio
     auth/           # autenticación: routes, controller, service, repository, schema, exceptions
@@ -28,7 +29,7 @@ src/
   shared/           # código compartido
     types.ts        # tipos de dominio (User, Identity, etc.)
     exceptions/     # excepciones base (AppException)
-    schemas/        # esquemas AJV compartidos (errorResponse)
+    schemas/        # esquemas JSON compartidos (errorResponse)
   types/            # declaraciones de tipos para módulos externos (fastify.d.ts)
 migrations/         # migraciones de node-pg-migrate (en TypeScript)
 test/               # tests de integración con Vitest (fastify.inject)
@@ -38,9 +39,9 @@ dist/               # salida compilada (generado por `pnpm build`)
 
 ## Documentación interactiva (Scalar)
 
-Con el servidor levantado, abre `http://localhost:3000/reference` para ver la documentación interactiva de la API (generada a partir de los esquemas AJV de cada ruta vía `@fastify/swagger`, renderizada con [Scalar](https://scalar.com)). El documento OpenAPI en bruto está en `/reference/openapi.json` (o `.yaml`).
+Con el servidor levantado, abre `http://localhost:3000/reference` para ver la documentación interactiva de la API (generada a partir de los esquemas JSON Schema de cada ruta vía `@fastify/swagger`, renderizada con [Scalar](https://scalar.com)). El documento OpenAPI en bruto está en `/reference/openapi.json` (o `.yaml`).
 
-Para documentar una ruta nueva, añade `tags`, `summary`/`description` y, si está protegida, `security: [{ bearerAuth: [] }]` a su esquema AJV (ver `src/features/auth/auth.schema.ts` como ejemplo) — no hace falta tocar `src/plugins/swagger.ts`.
+Para documentar una ruta nueva, añade `tags`, `summary`/`description` y, si está protegida, `security: [{ bearerAuth: [] }]` a su esquema JSON Schema (ver `src/features/auth/auth.schema.ts` como ejemplo) — no hace falta tocar `src/plugins/swagger.ts`.
 
 ## Autenticación e identidades
 

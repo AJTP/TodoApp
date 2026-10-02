@@ -2,7 +2,6 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import Fastify from "fastify";
 import AutoLoad from "@fastify/autoload";
-import ajvFormats from "ajv-formats";
 import config from "./config/index.js";
 import authRoutes from "./features/auth/auth.routes.js";
 import userRoutes from "./features/users/user.routes.js";
@@ -17,10 +16,6 @@ export async function build(
 ): Promise<ReturnType<typeof Fastify>> {
   const fastify = Fastify({
     logger: { level: config.logLevel },
-    ajv: {
-      customOptions: { allErrors: true },
-      plugins: [ajvFormats],
-    },
     ...opts,
   });
 

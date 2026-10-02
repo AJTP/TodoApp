@@ -1,59 +1,33 @@
 import dotenv from "dotenv";
-import Ajv from "ajv";
-import ajvFormats from "ajv-formats";
+import { z } from "zod";
 
 dotenv.config();
 
-const ajv = new Ajv({ useDefaults: true, coerceTypes: true, allErrors: true });
-ajvFormats(ajv);
+const envSchema = z.object({
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  PORT: z.string().regex(/^[0-9]+$/).default("3000"),
+  HOST: z.string().default("0.0.0.0"),
+  LOG_LEVEL: z.string().default("info"),
+  DATABASE_URL: z.string().min(1),
+  GOOGLE_CLIENT_ID: z.string().min(1),
+  JWT_SECRET: z.string().min(32),
+  JWT_EXPIRES_IN: z.string().default("1h"),
+  CORS_ORIGIN: z.string().default("*"),
+  AUTH_RATE_LIMIT_MAX: z.string().regex(/^[0-9]+$/).default("10"),
+  AUTH_RATE_LIMIT_WINDOW: z.string().default("1 minute"),
+  STRICT_SSL: z.string().optional(),
+});
 
-interface EnvVars {
-  NODE_ENV: "development" | "test" | "production";
-  PORT: string;
-  HOST: string;
-  LOG_LEVEL: string;
-  DATABASE_URL: string;
-  GOOGLE_CLIENT_ID: string;
-  JWT_SECRET: string;
-  JWT_EXPIRES_IN: string;
-  CORS_ORIGIN: string;
-  AUTH_RATE_LIMIT_MAX: string;
-  AUTH_RATE_LIMIT_WINDOW: string;
-  STRICT_SSL?: string;
+const envResult = envSchema.safeParse(process.env);
+
+if (!envResult.success) {
+  const errors = envResult.error.errors
+    .map((err) => `${err.path.join(".")}: ${err.message}`)
+    .join("\n");
+  throw new Error(`Invalid environment configuration:\n${errors}`);
 }
 
-const envSchema = {
-  type: "object",
-  required: ["DATABASE_URL", "GOOGLE_CLIENT_ID", "JWT_SECRET"],
-  properties: {
-    NODE_ENV: {
-      type: "string",
-      enum: ["development", "test", "production"],
-      default: "development",
-    },
-    PORT: { type: "string", pattern: "^[0-9]+$", default: "3000" },
-    HOST: { type: "string", default: "0.0.0.0" },
-    LOG_LEVEL: { type: "string", default: "info" },
-    DATABASE_URL: { type: "string", minLength: 1 },
-    GOOGLE_CLIENT_ID: { type: "string", minLength: 1 },
-    JWT_SECRET: { type: "string", minLength: 32 },
-    JWT_EXPIRES_IN: { type: "string", default: "1h" },
-    CORS_ORIGIN: { type: "string", default: "*" },
-    AUTH_RATE_LIMIT_MAX: { type: "string", pattern: "^[0-9]+$", default: "10" },
-    AUTH_RATE_LIMIT_WINDOW: { type: "string", default: "1 minute" },
-    STRICT_SSL: { type: "string" },
-  },
-} as const;
-
-const validate = ajv.compile(envSchema);
-
-const env = { ...process.env } as Partial<EnvVars>;
-const valid = validate(env);
-
-if (!valid) {
-  const message = ajv.errorsText(validate.errors, { separator: "\n" });
-  throw new Error(`Invalid environment configuration:\n${message}`);
-}
+const env = envResult.data;
 
 // En redes con proxy que intercepta TLS (p. ej. Netskope), STRICT_SSL=false
 // también desactiva la verificación de certificados en las llamadas HTTPS
@@ -91,7 +65,7 @@ export interface Config {
 }
 
 const config: Config = {
-  nodeEnv: env.NODE_ENV as "development" | "test" | "production",
+  nodeEnv: env.NODE_ENV,
   isProduction: env.NODE_ENV === "production",
   isTest: env.NODE_ENV === "test",
   port: Number(env.PORT),

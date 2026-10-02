@@ -72,7 +72,7 @@ Extensiones y middlewares de Fastify.
 
 ### `src/config/` - Configuración
 
-- **`index.ts`** - Variables de entorno y configuración centralizada (tipada con Config interface)
+- **`index.ts`** - Variables de entorno validadas con **Zod** (tipadas con Config interface)
 
 ### `src/types/` - Declaraciones de Tipos
 
