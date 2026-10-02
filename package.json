@@ -1,0 +1,43 @@
+{
+  "name": "backend-boilerplate",
+  "version": "1.0.0",
+  "description": "Boilerplate genérico para proyectos backend: Node + Fastify + PostgreSQL + Docker",
+  "main": "src/server.js",
+  "private": true,
+  "packageManager": "pnpm@10.17.1",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "migrate": "node-pg-migrate",
+    "migrate:up": "node-pg-migrate up",
+    "migrate:down": "node-pg-migrate down",
+    "migrate:create": "node-pg-migrate create",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:ci": "node-pg-migrate up && jest --runInBand",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@fastify/autoload": "^6.0.0",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/jwt": "^10.2.2",
+    "@fastify/postgres": "^6.0.0",
+    "@fastify/rate-limit": "^11.2.0",
+    "@fastify/swagger": "^9.9.0",
+    "@scalar/fastify-api-reference": "^1.71.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "dotenv": "^16.4.5",
+    "fastify": "^5.0.0",
+    "fastify-plugin": "^5.0.1",
+    "google-auth-library": "^11.1.0",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "node-pg-migrate": "^7.6.1",
+    "nodemon": "^3.1.7",
+    "prettier": "^3.9.9"
+  }
+}
