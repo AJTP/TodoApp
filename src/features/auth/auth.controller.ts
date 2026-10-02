@@ -1,13 +1,17 @@
-import type { FastifyRequest, FastifyReply } from "fastify";
 import { verifyGoogleIdToken } from "../providers/google.js";
 import * as identityService from "./identity.service.js";
 import * as tokenService from "./token.service.js";
 import * as userService from "../users/user.service.js";
+import { toUserResponse } from "../users/user.schema.js";
 import { UnverifiedEmailError } from "./exceptions.js";
+import type { ZodReply, ZodRequest } from "../../shared/fastify-types.js";
+import type { googleLoginSchema, logoutSchema, meSchema, refreshSchema } from "./auth.schema.js";
 
-export async function googleLogin(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const body = request.body as { id_token: string };
-  const { id_token: idToken } = body;
+export async function googleLogin(
+  request: ZodRequest<typeof googleLoginSchema>,
+  reply: ZodReply<typeof googleLoginSchema>,
+): Promise<void> {
+  const { id_token: idToken } = request.body;
 
   let profile;
   try {
@@ -38,15 +42,14 @@ export async function googleLogin(request: FastifyRequest, reply: FastifyReply):
   });
   const refreshToken = await tokenService.issueRefreshToken(request.server.pg, user.id);
 
-  reply.status(200).send({ accessToken, refreshToken, user });
+  reply.status(200).send({ accessToken, refreshToken, user: toUserResponse(user) });
 }
 
 export async function refreshAccessToken(
-  request: FastifyRequest,
-  reply: FastifyReply,
+  request: ZodRequest<typeof refreshSchema>,
+  reply: ZodReply<typeof refreshSchema>,
 ): Promise<void> {
-  const body = request.body as { refresh_token: string };
-  const { refresh_token: refreshTokenValue } = body;
+  const { refresh_token: refreshTokenValue } = request.body;
 
   const rotated = await tokenService.rotateRefreshToken(request.server.pg, refreshTokenValue);
 
@@ -67,12 +70,18 @@ export async function refreshAccessToken(
   reply.status(200).send({ accessToken, refreshToken: rotated.refreshToken });
 }
 
-export async function logout(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+export async function logout(
+  request: ZodRequest<typeof logoutSchema>,
+  reply: ZodReply<typeof logoutSchema>,
+): Promise<void> {
   await tokenService.revokeAllRefreshTokens(request.server.pg, request.user.id);
-  reply.status(204).send();
+  reply.status(204).send(null);
 }
 
-export async function getMe(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+export async function getMe(
+  request: ZodRequest<typeof meSchema>,
+  reply: ZodReply<typeof meSchema>,
+): Promise<void> {
   const user = await userService.getUserById(request.server.pg, request.user.id);
-  reply.send(user);
+  reply.send(toUserResponse(user));
 }

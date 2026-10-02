@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import * as authController from "./auth.controller.js";
 import { googleLoginSchema, meSchema, refreshSchema, logoutSchema } from "./auth.schema.js";
 import config from "../../config/index.js";
@@ -8,7 +9,9 @@ const authRateLimit = {
   timeWindow: config.authRateLimitWindow,
 };
 
-export default async function authRoutes(fastify: FastifyInstance): Promise<void> {
+export default async function authRoutes(app: FastifyInstance): Promise<void> {
+  const fastify = app.withTypeProvider<ZodTypeProvider>();
+
   fastify.post(
     "/auth/google",
     {

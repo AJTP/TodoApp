@@ -1,6 +1,7 @@
 import fp from "fastify-plugin";
 import fastifySwagger from "@fastify/swagger";
 import scalarApiReference from "@scalar/fastify-api-reference";
+import { jsonSchemaTransform } from "fastify-type-provider-zod";
 import config from "../config/index.js";
 
 export default fp(async function swaggerPlugin(fastify) {
@@ -26,6 +27,8 @@ export default fp(async function swaggerPlugin(fastify) {
         },
       },
     },
+    // Convierte los schemas Zod de cada ruta a JSON Schema para el OpenAPI
+    transform: jsonSchemaTransform,
   });
 
   await fastify.register(scalarApiReference, {

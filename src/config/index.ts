@@ -27,7 +27,7 @@ const envSchema = z.object({
 const envResult = envSchema.safeParse(process.env);
 
 if (!envResult.success) {
-  const errors = envResult.error.errors
+  const errors = envResult.error.issues
     .map((err) => `${err.path.join(".")}: ${err.message}`)
     .join("\n");
   throw new Error(`Invalid environment configuration:\n${errors}`);

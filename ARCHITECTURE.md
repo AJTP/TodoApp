@@ -29,7 +29,7 @@ features/
 ├── auth/
 │   ├── auth.controller.ts          # Manejadores de requests HTTP
 │   ├── auth.routes.ts              # Definición de endpoints
-│   ├── auth.schema.ts              # Validaciones (JSON Schema)
+│   ├── auth.schema.ts              # Validaciones (schemas Zod)
 │   ├── identity.repository.ts      # Acceso a datos: identidades
 │   ├── identity.service.ts         # Lógica de negocio: identidades
 │   ├── refresh-token.repository.ts # Acceso a datos: refresh tokens
@@ -53,7 +53,8 @@ features/
 Código reutilizable entre features.
 
 - **`exceptions/app-exception.ts`** - Clase base para todas las excepciones personalizadas
-- **`schemas/common.schema.ts`** - Schemas comunes (errores, etc.)
+- **`schemas/common.schema.ts`** - Schemas Zod comunes (`errorResponseSchema`)
+- **`fastify-types.ts`** - Tipos `ZodRequest`/`ZodReply` para tipar controllers a partir del schema de la ruta
 - **`types.ts`** - Tipos/interfaces compartidas (User, Identity, RefreshToken, OAuthProfile, Queryable)
 - **`utils/`** - Funciones utilitarias (futuro)
 
@@ -68,7 +69,6 @@ Extensiones y middlewares de Fastify.
 - **`authorization.ts`** - Verificación de permisos
 - **`swagger.ts`** - Documentación OpenAPI
 - **`error-handler.ts`** - Manejo centralizado de errores
-- **`schemas.ts`** - Registro de schemas comunes
 
 ### `src/config/` - Configuración
 
@@ -109,18 +109,18 @@ Response JSON
 
 ### Controller (`.controller.ts`)
 
-**Responsabilidad:** Manejar la lógica HTTP (request/response). Tipado con genéricos de Fastify.
+**Responsabilidad:** Manejar la lógica HTTP (request/response). Request y reply se tipan a partir del schema Zod de la ruta con `ZodRequest`/`ZodReply` (`src/shared/fastify-types.ts`), sin casts.
 
 ```typescript
 // src/features/auth/auth.controller.ts
-import type { FastifyRequest, FastifyReply } from "fastify";
+import type { ZodReply, ZodRequest } from "../../shared/fastify-types.js";
+import type { googleLoginSchema } from "./auth.schema.js";
 
-interface GoogleLoginRequest extends FastifyRequest {
-  body: { id_token: string };
-}
-
-export async function googleLogin(request: GoogleLoginRequest, reply: FastifyReply): Promise<void> {
-  const { id_token: idToken } = request.body; // Parsear input (tipado)
+export async function googleLogin(
+  request: ZodRequest<typeof googleLoginSchema>,
+  reply: ZodReply<typeof googleLoginSchema>,
+): Promise<void> {
+  const { id_token: idToken } = request.body; // Tipado e inferido del schema Zod
 
   let profile;
   try {
@@ -133,7 +133,8 @@ export async function googleLogin(request: GoogleLoginRequest, reply: FastifyRep
   const user = await identityService.findOrCreateUserFromIdentity(request.server.pg, profile);
 
   const accessToken = await reply.jwtSign({ id: user.id, email: user.email });
-  reply.status(200).send({ accessToken, user }); // Enviar response
+  // El serializer de Zod comprueba que la respuesta cumple el schema del status
+  reply.status(200).send({ accessToken, refreshToken, user: toUserResponse(user) });
 }
 ```
 
@@ -237,41 +238,37 @@ export async function create(
 
 ### Schema (`.schema.ts`)
 
-**Responsabilidad:** Validar entrada (JSON Schema) y documentar endpoints.
+**Responsabilidad:** Validar entrada y respuestas con **Zod** y documentar endpoints. Un único schema valida, tipa y genera el OpenAPI (vía `fastify-type-provider-zod`).
 
 ```typescript
 // src/features/auth/auth.schema.ts
+import { z } from "zod";
+import { errorResponseSchema } from "../../shared/schemas/common.schema.js";
+import { userResponseSchema } from "../users/user.schema.js";
+
 export const googleLoginSchema = {
   tags: ["auth"],
   summary: "Login/registro con Google",
   description: "Verifica un id_token de Google...",
-  body: {
-    type: "object",
-    required: ["id_token"],
-    additionalProperties: false,
-    properties: {
-      id_token: { type: "string", minLength: 1 },
-    },
-  },
+  body: z.object({ id_token: z.string().min(1) }),
   response: {
-    200: {
-      type: "object",
-      properties: {
-        accessToken: { type: "string" },
-        refreshToken: { type: "string" },
-        user: { type: "object", properties: userProperties },
-      },
-    },
-    401: { $ref: "errorResponse#" },
+    200: z.object({
+      accessToken: z.string(),
+      refreshToken: z.string(),
+      user: userResponseSchema,
+    }),
+    401: errorResponseSchema,
   },
-} as const;
+};
 ```
 
 **Tareas:**
 
-- ✅ Validar entrada del usuario
-- ✅ Documentar respuestas (Swagger)
-- ✅ Validación automática en Fastify
+- ✅ Validar entrada del usuario (body, params, querystring)
+- ✅ Validar/serializar la respuesta de cada status
+- ✅ Documentar respuestas (Swagger) y obtener los tipos con `z.infer`
+
+**Contrato de la API vs. dominio:** la API expone `snake_case` (`avatar_url`, `created_at`) y el dominio usa `camelCase`. `toUserResponse` (en `user.schema.ts`) hace la conversión antes de responder.
 
 ### Routes (`.routes.ts`)
 
@@ -280,10 +277,13 @@ export const googleLoginSchema = {
 ```typescript
 // src/features/auth/auth.routes.ts
 import type { FastifyInstance } from "fastify";
+import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import * as authController from "./auth.controller.js";
 import { googleLoginSchema, meSchema } from "./auth.schema.js";
 
-export default async function authRoutes(fastify: FastifyInstance): Promise<void> {
+export default async function authRoutes(app: FastifyInstance): Promise<void> {
+  const fastify = app.withTypeProvider<ZodTypeProvider>(); // Activa los tipos de Zod
+
   fastify.post("/auth/google", { schema: googleLoginSchema }, authController.googleLogin);
 
   fastify.get(
@@ -443,93 +443,92 @@ export async function createProduct(
 }
 ```
 
-#### 6. Crear `product.controller.ts`
-
-```typescript
-// src/features/products/product.controller.ts
-import type { FastifyRequest, FastifyReply } from "fastify";
-import * as productService from "./product.service.js";
-
-interface GetProductRequest extends FastifyRequest {
-  params: { id: string };
-}
-
-interface CreateProductRequest extends FastifyRequest {
-  body: { name: string; price: number };
-}
-
-export async function listProducts(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const products = await productService.getProducts(request.server.pg);
-  reply.send(products);
-}
-
-export async function getProduct(request: GetProductRequest, reply: FastifyReply): Promise<void> {
-  const product = await productService.getProductById(request.server.pg, request.params.id);
-  reply.send(product);
-}
-
-export async function createProduct(
-  request: CreateProductRequest,
-  reply: FastifyReply,
-): Promise<void> {
-  const product = await productService.createProduct(request.server.pg, request.body);
-  reply.status(201).send(product);
-}
-```
-
-#### 7. Crear `product.schema.ts`
+#### 6. Crear `product.schema.ts`
 
 ```typescript
 // src/features/products/product.schema.ts
-const productProperties = {
-  id: { type: "string", format: "uuid" },
-  name: { type: "string" },
-  price: { type: "number", minimum: 0 },
-  created_at: { type: "string", format: "date-time" },
-} as const;
+import { z } from "zod";
+import { errorResponseSchema } from "../../shared/schemas/common.schema.js";
+
+export const productResponseSchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  price: z.number().min(0),
+  created_at: z.iso.datetime(),
+});
+
+export type ProductResponse = z.infer<typeof productResponseSchema>;
 
 export const listProductsSchema = {
   tags: ["products"],
   summary: "Listar productos",
-  response: {
-    200: {
-      type: "array",
-      items: { type: "object", properties: productProperties },
-    },
-  },
-} as const;
+  response: { 200: z.array(productResponseSchema) },
+};
 
 export const getProductSchema = {
   tags: ["products"],
   summary: "Obtener un producto",
-  params: {
-    type: "object",
-    required: ["id"],
-    properties: { id: { type: "string", format: "uuid" } },
-  },
-  response: {
-    200: { type: "object", properties: productProperties },
-    404: { $ref: "errorResponse#" },
-  },
-} as const;
+  params: z.object({ id: z.uuid() }),
+  response: { 200: productResponseSchema, 404: errorResponseSchema },
+};
 
 export const createProductSchema = {
   tags: ["products"],
   summary: "Crear producto",
-  body: {
-    type: "object",
-    required: ["name", "price"],
-    additionalProperties: false,
-    properties: {
-      name: { type: "string", minLength: 1 },
-      price: { type: "number", minimum: 0 },
-    },
-  },
-  response: {
-    201: { type: "object", properties: productProperties },
-    400: { $ref: "errorResponse#" },
-  },
-} as const;
+  body: z.object({ name: z.string().min(1), price: z.number().min(0) }),
+  response: { 201: productResponseSchema, 400: errorResponseSchema },
+};
+```
+
+Los tipos de `body`, `params` y de cada respuesta se infieren de estos schemas; no hace falta declarar interfaces a mano.
+
+#### 7. Crear `product.controller.ts`
+
+```typescript
+// src/features/products/product.controller.ts
+import * as productService from "./product.service.js";
+import type { ZodReply, ZodRequest } from "../../shared/fastify-types.js";
+import type { Product } from "../../shared/types.js";
+import type {
+  createProductSchema,
+  getProductSchema,
+  listProductsSchema,
+  ProductResponse,
+} from "./product.schema.js";
+
+// Dominio (camelCase) -> contrato de la API (snake_case)
+function toProductResponse(product: Product): ProductResponse {
+  return {
+    id: product.id,
+    name: product.name,
+    price: product.price,
+    created_at: product.createdAt.toISOString(),
+  };
+}
+
+export async function listProducts(
+  request: ZodRequest<typeof listProductsSchema>,
+  reply: ZodReply<typeof listProductsSchema>,
+): Promise<void> {
+  const products = await productService.getProducts(request.server.pg);
+  reply.send(products.map(toProductResponse));
+}
+
+export async function getProduct(
+  request: ZodRequest<typeof getProductSchema>,
+  reply: ZodReply<typeof getProductSchema>,
+): Promise<void> {
+  const product = await productService.getProductById(request.server.pg, request.params.id);
+  reply.send(toProductResponse(product));
+}
+
+export async function createProduct(
+  request: ZodRequest<typeof createProductSchema>,
+  reply: ZodReply<typeof createProductSchema>,
+): Promise<void> {
+  const product = await productService.createProduct(request.server.pg, request.body);
+  reply.status(201).send(toProductResponse(product));
+}
 ```
 
 #### 8. Crear `product.routes.ts`
@@ -537,10 +536,13 @@ export const createProductSchema = {
 ```typescript
 // src/features/products/product.routes.ts
 import type { FastifyInstance } from "fastify";
+import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import * as productController from "./product.controller.js";
 import { listProductsSchema, getProductSchema, createProductSchema } from "./product.schema.js";
 
-export default async function productRoutes(fastify: FastifyInstance): Promise<void> {
+export default async function productRoutes(app: FastifyInstance): Promise<void> {
+  const fastify = app.withTypeProvider<ZodTypeProvider>();
+
   fastify.get("/products", { schema: listProductsSchema }, productController.listProducts);
 
   fastify.get("/products/:id", { schema: getProductSchema }, productController.getProduct);
@@ -619,9 +621,9 @@ La feature está lista. Los endpoints estarán disponibles en:
 - [ ] Crear `nombre.repository.ts` - Acceso a datos (tipado)
 - [ ] Crear `nombre.service.ts` - Lógica de negocio (tipado)
 - [ ] Crear `exceptions.ts` - Errores personalizados (extienden AppException)
-- [ ] Crear `nombre.controller.ts` - Manejadores HTTP (tipados con FastifyRequest/Reply)
-- [ ] Crear `nombre.schema.ts` - Validaciones y docs (JSON Schema)
-- [ ] Crear `nombre.routes.ts` - Definir endpoints (async, return Promise<void>)
+- [ ] Crear `nombre.controller.ts` - Manejadores HTTP (tipados con ZodRequest/ZodReply)
+- [ ] Crear `nombre.schema.ts` - Validaciones y docs (schemas Zod)
+- [ ] Crear `nombre.routes.ts` - Definir endpoints (`app.withTypeProvider<ZodTypeProvider>()`)
 - [ ] Registrar rutas en `src/app.ts` (await fastify.register)
 - [ ] Crear migración (pnpm migrate:create) y aplicar (pnpm migrate:up)
 - [ ] Escribir tests en `test/nombre.test.ts` (opcional pero recomendado)
@@ -634,16 +636,16 @@ La feature está lista. Los endpoints estarán disponibles en:
 ### Manejar errores en controller
 
 ```typescript
-import type { FastifyRequest, FastifyReply } from "fastify";
+import type { ZodReply, ZodRequest } from "../../shared/fastify-types.js";
+import type { createUserSchema } from "./user.schema.js";
 
-interface CreateUserRequest extends FastifyRequest {
-  body: { email: string; name: string };
-}
-
-export async function createUser(request: CreateUserRequest, reply: FastifyReply): Promise<void> {
+export async function createUser(
+  request: ZodRequest<typeof createUserSchema>,
+  reply: ZodReply<typeof createUserSchema>,
+): Promise<void> {
   try {
     const user = await userService.createUser(request.server.pg, request.body);
-    reply.status(201).send(user);
+    reply.status(201).send(toUserResponse(user));
   } catch (err) {
     if (err instanceof DuplicateEmailError) {
       reply.status(400).send({ error: "Bad Request", message: err.message });
@@ -684,39 +686,25 @@ export async function createUserWithProfile(
 
 ### Reutilizar schemas comunes
 
+Los schemas Zod se componen como cualquier valor de TypeScript:
+
 ```typescript
 // En product.schema.ts
-import { userProperties } from "../users/user.schema.js";
+import { z } from "zod";
+import { userResponseSchema } from "../users/user.schema.js";
 
-export const productWithOwnerSchema = {
-  type: "object",
-  properties: {
-    id: { type: "string", format: "uuid" },
-    name: { type: "string" },
-    owner: { type: "object", properties: userProperties },
-  },
-} as const;
+export const productWithOwnerSchema = productResponseSchema.extend({
+  owner: userResponseSchema,
+});
 ```
 
-### Tipar genéricos de Fastify
+### Obtener el tipo a partir de un schema
 
 ```typescript
-// En auth.routes.ts
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import { z } from "zod";
 
-interface LoginBody {
-  email: string;
-  password: string;
-}
+export const createProductBodySchema = z.object({ name: z.string().min(1), price: z.number() });
 
-export default async function authRoutes(fastify: FastifyInstance): Promise<void> {
-  fastify.post<{ Body: LoginBody }>(
-    "/auth/login",
-    { schema: loginSchema },
-    async (request, reply) => {
-      const { email, password } = request.body; // Tipado como LoginBody
-      // ...
-    },
-  );
-}
+// Tipo inferido: { name: string; price: number }
+export type CreateProductBody = z.infer<typeof createProductBodySchema>;
 ```

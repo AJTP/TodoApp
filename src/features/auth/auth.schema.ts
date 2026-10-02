@@ -1,74 +1,47 @@
-import { userProperties } from "../users/user.schema.js";
+import { z } from "zod";
+import { errorResponseSchema } from "../../shared/schemas/common.schema.js";
+import { userResponseSchema } from "../users/user.schema.js";
 
-const tokenPairProperties = {
-  accessToken: { type: "string" },
-  refreshToken: { type: "string" },
-} as const;
+const tokenPairSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string(),
+});
 
 export const googleLoginSchema = {
   tags: ["auth"],
   summary: "Login/registro con Google",
   description:
     "Verifica un id_token de Google, crea o vincula el usuario y devuelve un accessToken (JWT) y un refreshToken.",
-  body: {
-    type: "object",
-    required: ["id_token"],
-    additionalProperties: false,
-    properties: {
-      id_token: { type: "string", minLength: 1 },
-    },
-  },
+  body: z.object({ id_token: z.string().min(1) }),
   response: {
-    200: {
-      type: "object",
-      properties: {
-        ...tokenPairProperties,
-        user: {
-          type: "object",
-          properties: userProperties,
-        },
-      },
-    },
-    400: { $ref: "errorResponse#" },
-    401: { $ref: "errorResponse#" },
+    200: tokenPairSchema.extend({ user: userResponseSchema }),
+    400: errorResponseSchema,
+    401: errorResponseSchema,
   },
-} as const;
+};
 
 export const meSchema = {
   tags: ["auth"],
   summary: "Perfil del usuario autenticado",
   security: [{ bearerAuth: [] }],
   response: {
-    200: {
-      type: "object",
-      properties: userProperties,
-    },
-    401: { $ref: "errorResponse#" },
-    404: { $ref: "errorResponse#" },
+    200: userResponseSchema,
+    401: errorResponseSchema,
+    404: errorResponseSchema,
   },
-} as const;
+};
 
 export const refreshSchema = {
   tags: ["auth"],
   summary: "Refresca el access token",
   description:
     "Rota el refresh token recibido: lo revoca y emite un nuevo par accessToken/refreshToken. Independiente del proveedor usado para el login original.",
-  body: {
-    type: "object",
-    required: ["refresh_token"],
-    additionalProperties: false,
-    properties: {
-      refresh_token: { type: "string", minLength: 1 },
-    },
-  },
+  body: z.object({ refresh_token: z.string().min(1) }),
   response: {
-    200: {
-      type: "object",
-      properties: tokenPairProperties,
-    },
-    401: { $ref: "errorResponse#" },
+    200: tokenPairSchema,
+    401: errorResponseSchema,
   },
-} as const;
+};
 
 export const logoutSchema = {
   tags: ["auth"],
@@ -77,7 +50,7 @@ export const logoutSchema = {
     "Revoca todos los refresh tokens vivos del usuario autenticado. El accessToken en curso sigue siendo válido hasta que expire (JWT_EXPIRES_IN), pero ya no podrá renovarse.",
   security: [{ bearerAuth: [] }],
   response: {
-    204: { type: "null" },
-    401: { $ref: "errorResponse#" },
+    204: z.null(),
+    401: errorResponseSchema,
   },
-} as const;
+};

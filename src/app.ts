@@ -1,6 +1,6 @@
 import Fastify from "fastify";
+import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
 import config from "./config/index.js";
-import schemasPlugin from "./plugins/schemas.js";
 import errorHandlerPlugin from "./plugins/error-handler.js";
 import dbPlugin from "./plugins/db.js";
 import jwtPlugin from "./plugins/jwt.js";
@@ -19,8 +19,11 @@ export async function build(opts: FastifyServerOptions = {}): Promise<ReturnType
     ...opts,
   });
 
+  // Zod valida las entradas y serializa las respuestas de todas las rutas
+  fastify.setValidatorCompiler(validatorCompiler);
+  fastify.setSerializerCompiler(serializerCompiler);
+
   // Plugins (swagger antes de las rutas para que las documente)
-  await fastify.register(schemasPlugin);
   await fastify.register(errorHandlerPlugin);
   await fastify.register(dbPlugin);
   await fastify.register(jwtPlugin);

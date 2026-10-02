@@ -52,7 +52,7 @@ src/
 - `.controller.ts` - Lógica HTTP
 - `.service.ts` - Lógica de negocio
 - `.repository.ts` - Acceso a BD
-- `.schema.ts` - Validaciones (JSON Schema)
+- `.schema.ts` - Validaciones y docs (schemas Zod)
 - `.exceptions.ts` - Errores específicos
 
 ---
@@ -62,8 +62,8 @@ src/
 ### ✅ Validación Tipada con Zod
 
 - Validación segura de variables de entorno en `src/config/`
-- Schemas Zod reutilizables en `src/shared/validation.ts`
-- Validación automática de request body con JSON Schema (Fastify + AJV)
+- Schemas Zod en cada ruta (`body`, `params`, `response`): validan, tipan y generan el OpenAPI
+- Controllers tipados sin casts con `ZodRequest`/`ZodReply` (`src/shared/fastify-types.ts`)
 
 ### ✅ Autenticación con Google + Refresh Tokens
 
@@ -188,38 +188,44 @@ export async function getProducts(pg: Queryable): Promise<Product[]> {
 **`src/features/products/product.controller.ts`** (HTTP)
 
 ```typescript
-import type { FastifyReply, FastifyRequest } from "fastify";
 import * as productService from "./product.service.js";
+import type { ZodReply, ZodRequest } from "../../shared/fastify-types.js";
+import type { listProductsSchema } from "./product.schema.js";
 
-export async function listProducts(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+export async function listProducts(
+  request: ZodRequest<typeof listProductsSchema>,
+  reply: ZodReply<typeof listProductsSchema>,
+): Promise<void> {
   const products = await productService.getProducts(request.server.pg);
-  reply.send(products);
+  reply.send(products.map((p) => ({ id: p.id, name: p.name })));
 }
 ```
 
 **`src/features/products/product.schema.ts`** (validación + docs)
 
 ```typescript
+import { z } from "zod";
+
 export const listProductsSchema = {
   tags: ["products"],
   summary: "Listar productos",
   response: {
-    200: {
-      type: "array",
-      items: { type: "object", properties: { id: { type: "string" }, name: { type: "string" } } },
-    },
+    200: z.array(z.object({ id: z.uuid(), name: z.string() })),
   },
-} as const;
+};
 ```
 
 **`src/features/products/product.routes.ts`** (endpoints)
 
 ```typescript
 import type { FastifyInstance } from "fastify";
+import type { ZodTypeProvider } from "fastify-type-provider-zod";
 import * as controller from "./product.controller.js";
 import { listProductsSchema } from "./product.schema.js";
 
-export default async function productRoutes(fastify: FastifyInstance): Promise<void> {
+export default async function productRoutes(app: FastifyInstance): Promise<void> {
+  const fastify = app.withTypeProvider<ZodTypeProvider>();
+
   fastify.get("/products", { schema: listProductsSchema }, controller.listProducts);
 }
 ```
@@ -320,7 +326,7 @@ JWT_SECRET=<una-string-larga-aleatoria-min-32-chars>
 JWT_EXPIRES_IN=1h
 ```
 
-Todas están validadas en `src/config/index.ts` con AJV.
+Todas están validadas en `src/config/index.ts` con Zod.
 
 ---
 
@@ -369,7 +375,6 @@ Este es un template pensado para **tu equipo**. Siéntete libre de:
 
 - Cambiar la estructura de carpetas si prefieres
 - Agregar más plugins de Fastify
-- Reemplazar AJV con TypeBox o Zod si prefieres
 - Adaptar la estrategia de testing
 
 ¡Feliz codeo! 🚀
