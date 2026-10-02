@@ -2,9 +2,9 @@ import { describe, it, expect, beforeAll, afterEach, afterAll, vi } from "vitest
 import { buildTestApp, truncateAll } from "./setup.js";
 import type { FastifyInstance } from "fastify";
 
-const mockVerifyIdToken = vi.fn();
+const mockVerifyIdToken = vi.hoisted(() => vi.fn());
 
-vi.mock("../src/features/providers/google.ts", () => ({
+vi.mock("../src/features/providers/google.js", () => ({
   verifyGoogleIdToken: mockVerifyIdToken,
 }));
 

@@ -17,7 +17,7 @@ Plantilla genérica para arrancar cualquier proyecto backend con:
 
 ```
 src/
-  app.ts            # construye la instancia de Fastify (autoload de plugins/routes)
+  app.ts            # construye la instancia de Fastify (registra plugins y rutas explícitamente)
   server.ts         # arranca el servidor HTTP
   config/           # carga y valida variables de entorno con Zod
   plugins/          # plugins de Fastify (BD, JWT, autorización, manejo de errores, esquemas compartidos)

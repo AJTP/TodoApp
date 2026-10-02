@@ -16,7 +16,7 @@ RUN set -eu; \
   if [ "$STRICT_SSL" = "false" ]; then export NODE_TLS_REJECT_UNAUTHORIZED=0; fi; \
   pnpm install --frozen-lockfile
 
-# ---- desarrollo: hot-reload con nodemon ----
+# ---- desarrollo: hot-reload con tsx ----
 FROM base AS dev
 COPY . .
 EXPOSE 3000
