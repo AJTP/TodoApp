@@ -1,9 +1,20 @@
+import type { QueryResultRow } from "pg";
 export interface User {
   id: string;
   name: string;
   email: string;
   avatarUrl: string | null;
   createdAt: Date;
+}
+
+export interface Todo {
+  id: string;
+  userId: string;
+  title: string;
+  description: string;
+  completed: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface Identity {
@@ -32,7 +43,9 @@ export interface OAuthProfile {
   avatarUrl: string | null;
 }
 
-// Tipo auxiliar para pasar al repositorio (Pool o Client con método query)
 export type Queryable = {
-  query: (text: string, values?: unknown[]) => Promise<{ rows: unknown[] }>;
+  query: <R extends QueryResultRow = QueryResultRow>(
+    text: string,
+    values?: unknown[],
+  ) => Promise<{ rows: R[] }>;
 };

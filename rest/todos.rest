@@ -1,0 +1,54 @@
+-- Active: 1790184526881@@127.0.0.1@5435@app_dev
+@baseUrl = http://localhost:3000
+
+### Login/registro con Google
+# El id_token debe obtenerse del SDK de Sign-In de Google en un cliente real,
+# o de https://developers.google.com/oauthplayground (no se puede generar
+# desde este cliente REST).
+#
+# Define GOOGLE_ID_TOKEN en tu .env local (no se commitea) para no pegar
+# tokens reales aquí. Es la única variable que hay que rellenar a mano: las
+# peticiones siguientes reutilizan el accessToken/refreshToken de esta misma
+# respuesta automáticamente.
+# @name googleLogin
+POST {{baseUrl}}/auth/google
+Content-Type: application/json
+
+{
+  "id_token": "{{$dotenv GOOGLE_ID_TOKEN}}"
+}
+
+### Crear nueva tarea
+# @name createTodo
+POST {{baseUrl}}/todos
+Authorization: Bearer {{googleLogin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "title": "Nueva tarea4",
+  "description": "Descripción de la nueva tarea"
+}
+
+
+### Listar todas las tareas propias
+GET {{baseUrl}}/todos
+Authorization: Bearer {{googleLogin.response.body.$.accessToken}}
+
+### Listar tarea propia
+GET {{baseUrl}}/todos/{{createTodo.response.body.$.id}}
+Authorization: Bearer {{googleLogin.response.body.$.accessToken}}
+
+### Actualizar tarea propia
+PATCH {{baseUrl}}/todos/{{createTodo.response.body.$.id}}
+Authorization: Bearer {{googleLogin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "title": "Tarea actualizada",
+  "completed": false,
+  "description": "Descripción actualizada de la tarea"
+}
+
+### Eliminar tarea propia
+DELETE {{baseUrl}}/todos/{{createTodo.response.body.$.id}}
+Authorization: Bearer {{googleLogin.response.body.$.accessToken}}

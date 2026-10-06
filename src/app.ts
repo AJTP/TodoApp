@@ -12,6 +12,7 @@ import authRoutes from "./features/auth/auth.routes.js";
 import userRoutes from "./features/users/user.routes.js";
 import healthRoutes from "./features/health/health.routes.js";
 import type { FastifyServerOptions } from "fastify";
+import todoRoutes from "./features/todos/todo.routes.js";
 
 export async function build(opts: FastifyServerOptions = {}): Promise<ReturnType<typeof Fastify>> {
   const fastify = Fastify({
@@ -36,6 +37,7 @@ export async function build(opts: FastifyServerOptions = {}): Promise<ReturnType
   await fastify.register(authRoutes);
   await fastify.register(userRoutes);
   await fastify.register(healthRoutes);
+  await fastify.register(todoRoutes);
 
   return fastify;
 }
