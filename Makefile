@@ -2,7 +2,7 @@ DC ?= docker-compose
 
 .PHONY: help install env up dev down stop build build-no-cache logs ps shell \
 	migrate-up migrate-down migrate-create lint typecheck format \
-	test test-down test-logs clean
+	test test-ci test-down test-logs clean
 
 help:
 	@echo "Comandos disponibles:"
@@ -22,7 +22,8 @@ help:
 	@echo "  make typecheck       Comprueba tipos de TypeScript (tsc --noEmit)"
 	@echo "  make lint            Comprueba linting y formato (tsc, eslint, prettier)"
 	@echo "  make format          Formatea el código con Prettier"
-	@echo "  make test            Ejecuta los tests en su contenedor aislado (con su propia BD)"
+	@echo "  make test            Lanza vitest en modo watch + UI en su contenedor aislado (con su propia BD)"
+	@echo "  make test-ci         Ejecuta los tests una sola vez (modo CI) en su contenedor aislado"
 	@echo "  make test-down       Elimina los contenedores/volúmenes del entorno de test"
 	@echo "  make clean           Elimina contenedores y volúmenes de desarrollo"
 
@@ -76,7 +77,10 @@ format:
 	pnpm format
 	
 test: env
-	$(DC) -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from test
+	$(DC) -f docker-compose.test.yml up --build
+
+test-ci: env
+	$(DC) -f docker-compose.test.yml run --rm --build test pnpm run test:ci
 
 test-down:
 	$(DC) -f docker-compose.test.yml down -v

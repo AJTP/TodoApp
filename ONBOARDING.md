@@ -95,7 +95,7 @@ src/
 
 - **Vitest** en lugar de Jest (más rápido, soporte ESM/TS nativo)
 - Tests de integración contra BD real (contenedor aislado)
-- `make test` ejecuta contra la BD de test efímera
+- `make test` (watch + UI) / `make test-ci` (una sola pasada) ejecutan contra la BD de test efímera
 
 ### ✅ Docker Multi-Stage
 
@@ -126,7 +126,8 @@ pnpm lint              # eslint + prettier
 ### Testing
 
 ```bash
-make test              # corre tests en contenedor aislado
+make test              # vitest watch + UI (http://localhost:51204) en contenedor aislado
+make test-ci           # corre tests una sola vez (modo CI) en contenedor aislado
 pnpm test              # corre tests local (si tienes Postgres)
 pnpm test:watch        # modo watch
 ```

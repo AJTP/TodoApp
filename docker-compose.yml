@@ -24,8 +24,12 @@ services:
         STRICT_SSL: ${STRICT_SSL:-true}
     env_file:
       - .env
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "100"
     ports:
       - "3000:3000"
+      - "9229:9229"
     volumes:
       - .:/app
       - /app/node_modules

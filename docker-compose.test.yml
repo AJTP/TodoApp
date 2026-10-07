@@ -12,8 +12,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    logging:
-      driver: "none"
 
   test:
     build:
@@ -23,7 +21,16 @@ services:
         STRICT_SSL: ${STRICT_SSL:-true}
     env_file:
       - .env.test
+    environment:
+      VITEST_WATCH_USE_POLLING: "true"
     depends_on:
       db-test:
         condition: service_healthy
-    command: pnpm run test:ci
+    volumes:
+      - .:/app
+      - /app/node_modules
+    ports:
+      - "51204:51204"
+    stdin_open: true
+    tty: true
+    command: pnpm run test:ui:docker
