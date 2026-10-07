@@ -30,4 +30,4 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run tests (docker compose)
-        run: make test DC="docker compose"
+        run: make test-ci DC="docker compose"

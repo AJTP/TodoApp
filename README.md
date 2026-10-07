@@ -73,7 +73,8 @@ El proyecto incluye un `Makefile` con los comandos más habituales, para no memo
 ```bash
 make up             # crea .env/.env.test si no existen y levanta backend + db
 make migrate-up     # aplica migraciones dentro del contenedor backend
-make test           # corre los tests en su contenedor aislado (con su propia BD)
+make test           # vitest en modo watch + UI (http://localhost:51204) en su contenedor aislado
+make test-ci        # corre los tests una sola vez (modo CI) en su contenedor aislado
 make down           # detiene y elimina los contenedores de desarrollo
 make help           # lista todos los comandos disponibles
 ```
@@ -115,16 +116,27 @@ Aplicar migraciones dentro del contenedor de backend:
 docker compose exec backend pnpm migrate:up
 ```
 
+## Debug paso a paso
+
+El servidor arranca siempre con el inspector de Node activo (`tsx watch --inspect=0.0.0.0:9229`), y `docker-compose.yml` publica el puerto `9229`. Con `docker compose up` (o `make up`) levantado:
+
+1. Pon breakpoints en el código (`src/**/*.ts`).
+2. En VSCode, pestaña "Run and Debug" → **"Debug: Docker backend (make up)"** → Start.
+
+Se reconecta solo tras cada reload de `tsx watch` (`"restart": true` en `.vscode/launch.json`), así que puedes dejar la sesión de debug abierta mientras editas.
+
+Para depurar los tests paso a paso (requiere un Postgres accesible por `DATABASE_URL` en `.env.test`, p. ej. el de `docker-compose.yml` apuntando a `localhost:5435`): lanza **"Debug: tests (vitest, local)"** desde VSCode, que ejecuta `pnpm test:debug` (`vitest --inspect-brk`) y para en el primer breakpoint.
+
 ## Tests (contenedor independiente)
 
 Los tests corren en un contenedor **distinto** al de desarrollo, contra su propia base de datos efímera (`db-test`), para no compartir estado con el entorno de desarrollo:
 
 ```bash
 cp .env.test.example .env.test
-docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from test
+docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from test --attach test
 ```
 
-El contenedor `test` migra automáticamente `db-test` y luego ejecuta Vitest (`pnpm run test:ci`).
+El contenedor `test` migra automáticamente `db-test` (en silencio, `--no-verbose`) y luego ejecuta Vitest (`pnpm run test:ci`). `--attach test` hace que solo se muestre la salida de Vitest, sin mezclar los logs del contenedor `db-test` (Postgres).
 
 Para limpiar el contenedor/volumen de test:
 
@@ -175,7 +187,7 @@ Configura tu editor para formatear al guardar con Prettier, o ejecuta `pnpm form
 
 - **typecheck**: `pnpm typecheck` (TypeScript strict mode, sin Docker).
 - **lint**: `pnpm lint` (ESLint + Prettier en modo check, sin Docker).
-- **test**: `make test` con Docker Compose (Vitest, misma suite que en local, contra Postgres real).
+- **test**: `make test-ci` con Docker Compose (Vitest, misma suite que en local, contra Postgres real).
 
 ## Scripts
 
