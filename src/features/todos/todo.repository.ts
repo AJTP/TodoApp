@@ -56,7 +56,7 @@ export async function getAll(pg: Queryable, userId: string): Promise<Array<Todo>
 export async function create(
   pg: Queryable,
   title: string,
-  description: string,
+  description: string | undefined,
   completed: boolean,
   userId: string,
 ): Promise<Todo | null> {

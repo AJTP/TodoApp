@@ -20,7 +20,7 @@ export function toTodoResponse(todo: Todo): TodoResponse {
     user_id: todo.userId,
     title: todo.title,
     completed: todo.completed,
-    description: todo.description,
+    description: todo.description ?? undefined,
     created_at: todo.createdAt.toISOString(),
     updated_at: todo.updatedAt.toISOString(),
   };

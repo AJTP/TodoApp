@@ -25,6 +25,8 @@ describe("auth routes", () => {
 
   beforeAll(async () => {
     app = await buildTestApp();
+    await app.pg.query("DELETE FROM todos");
+    await app.pg.query("DELETE FROM users");
   });
 
   afterEach(async () => {

@@ -14,7 +14,7 @@ export async function getTodoById(pg: Queryable, todoId: string, userId: string)
 export async function createTodo(
   pg: Queryable,
   title: string,
-  description: string,
+  description: string | undefined,
   completed: boolean,
   userId: string,
 ): Promise<Todo> {
@@ -43,7 +43,7 @@ export async function updateTodo(
 ): Promise<Todo> {
   const todo = await todoRepository.update(pg, title, description, completed, id, userId);
   if (!todo) {
-    throw new Error();
+    throw new TodoNotFoundError(id);
   }
   return todo;
 }

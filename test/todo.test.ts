@@ -1,4 +1,14 @@
-import { describe, it, expect, beforeAll, afterEach, afterAll, vi, expectTypeOf } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  afterAll,
+  vi,
+  expectTypeOf,
+} from "vitest";
 import { buildTestApp } from "./setup";
 import type { FastifyInstance } from "fastify";
 import type { Todo } from "../src/shared/types";
@@ -38,8 +48,13 @@ describe("Todo CRUD", () => {
 
   beforeAll(async () => {
     app = await buildTestApp();
+    await app.pg.query("DELETE FROM todos");
+    await app.pg.query("DELETE FROM users");
     authToken = await getAuthToken(app);
-    console.log("Auth Token:", authToken);
+  });
+
+  beforeEach(async () => {
+    await app.pg.query("DELETE FROM todos");
   });
 
   afterEach(async () => {
@@ -68,7 +83,7 @@ describe("Todo CRUD", () => {
     });
   });
 
-  it.only("POST /todos crea una nueva tarea con título y descripción", async () => {
+  it("POST /todos crea una nueva tarea con título y descripción", async () => {
     const response = await app.inject({
       method: "POST",
       url: "/todos",
@@ -79,7 +94,6 @@ describe("Todo CRUD", () => {
       },
     });
 
-    console.log(response);
     expect(response.statusCode).toBe(200);
     const body = response.json();
 
@@ -100,6 +114,7 @@ describe("Todo CRUD", () => {
       payload: { title: "Tarea sin descripción" },
     });
 
+    const body = response.json();
     expectTypeOf(body).toExtend<Todo>();
     expect(body.id).toBeDefined();
     expect(body.title).toBeDefined();
@@ -267,7 +282,6 @@ describe("Todo CRUD", () => {
       url: `/todos/${fakeId}`,
       headers: { authorization: `Bearer ${authToken}` },
     });
-
     expect(response.statusCode).toBe(404);
   });
 
